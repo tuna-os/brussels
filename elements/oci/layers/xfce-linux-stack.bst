@@ -18,13 +18,6 @@ public:
       - ln -s var/opt /opt
       - ln -s var/mnt /mnt
       - ln -s var/srv /srv
-      # HACK: Fix hardcoded paths in pre-built binaries
-      - mkdir -p /var/home/james/dev/xfce-wayland
-      - ln -s /usr /var/home/james/dev/xfce-wayland/install
-      - mkdir -p /usr/lib64
-      - ln -s /usr/lib/xfce4 /usr/lib64/xfce4
-      # Run ldconfig so /etc/ld.so.conf.d/xfce.conf (adding /usr/lib) takes effect
-      - ldconfig || true
       # Disable GNOME services that interfere with XFCE
       - systemctl disable gnome-initial-setup || true
       - systemctl enable gdm || true
@@ -42,7 +35,7 @@ public:
         [daemon]
         AutomaticLoginEnable=True
         AutomaticLogin=xfce
-        DefaultSession=xfce-wayland
+        DefaultSession=xfwl4
 
         [debug]
         Enable=true
@@ -52,7 +45,7 @@ public:
       - |
         cat > /var/lib/AccountsService/users/xfce <<EOF
         [User]
-        Session=xfce-wayland
+        Session=xfwl4
         Icon=/usr/share/pixmaps/faces/user-generic.png
         SystemAccount=false
         EOF

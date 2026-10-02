@@ -94,24 +94,25 @@ touch /home/liveuser/.config/gnome-initial-setup-done
 chown -R liveuser:liveuser /home/liveuser/.config
 
 # ── GDM autologin into XFCE Wayland session ───────────────────────────────────
-# xfce-linux ships xfce-wayland as the default GDM session.
+# xfce-linux ships the xfwl4 session (wayland-sessions/xfwl4.desktop) as the
+# default GDM session.
 # DefaultSession must be set so GDM launches XFCE and not GNOME.
 mkdir -p /etc/gdm
 cat > /etc/gdm/custom.conf << 'GDMEOF'
 [daemon]
 AutomaticLoginEnable=True
 AutomaticLogin=liveuser
-DefaultSession=xfce-wayland
+DefaultSession=xfwl4
 WaylandEnable=True
 GDMEOF
 
-# Tell AccountsService that liveuser should use the xfce-wayland session.
+# Tell AccountsService that liveuser should use the xfwl4 session.
 # Without this, GDM may fall back to whatever session was last used globally.
 mkdir -p /var/lib/AccountsService/users
 cat > /var/lib/AccountsService/users/liveuser << 'ACEOF'
 [User]
-Session=xfce-wayland
-XSession=xfce-wayland
+Session=xfwl4
+XSession=xfwl4
 SystemAccount=false
 ACEOF
 

@@ -54,12 +54,12 @@ Heavy builds should run in CI, not on a laptop.
 - Renovate handles Actions/containers; `.bst` refs are bumped by
   `track-bst-sources.yml` (`bst source track`). Junction bumps
   (freedesktop-sdk, gnome-build-meta) are review-required.
-- Committed binary trees and large generated filemaps (issues #16/#17)
+- Committed binary trees and large generated filemaps (issues #16/#17/#158)
   were dropped from git in the repo-hygiene cleanup:
-  `files/xfce-binaries/` is now fetched by `xfce-binaries.bst` from a
-  pinned tarball, and `files/filemap.json` +
-  `files/fakecap-manifest.tsv` are generated at build time by
-  `scripts/gen-filemap.py`. Don't re-commit any of them.
+  `elements/xfce-linux/` now builds all XFCE desktop components directly
+  from upstream release tags (#158), retiring `xfce-binaries.bst` and the
+  `xfce-wayland` fork. `files/filemap.json` + `files/fakecap-manifest.tsv` are
+  generated at build time by `scripts/gen-filemap.py`. Don't re-commit them.
   `xfwl4-headers/` was removed in the #15 cleanup — vendored
   build-only headers that were never referenced by any .bst element.
 

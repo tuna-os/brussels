@@ -1,17 +1,37 @@
-# XFCE Linux cluster — dependencies and pre-built binaries
+# XFCE Linux cluster — desktop environment built from upstream release tags
 #
-# Provides all dependencies for XFCE desktop environment with 55 binaries
-# and 31 panel plugins from the hanthor/xfce-wayland monorepo.
+# Provides all core components and applications of the XFCE desktop environment
+# built from official upstream release tags (tuna-os/xfce-linux#158).
 
 kind: stack
 description: |
-  Complete XFCE desktop environment dependencies: 55 binaries + 31 panel plugins.
-  Includes xfwl4 compositor, xfce4-panel, xfdesktop, thunar, xfce4-terminal,
-  and all supporting applications and libraries.
+  Complete XFCE desktop environment built from upstream release tags.
+  Includes xfwl4 compositor, xfce4-panel, xfdesktop, thunar, xfce4-session,
+  xfce4-settings, xfwm4, xfce4-terminal, xfce4-appfinder, xfce4-notifyd,
+  xfce4-power-manager, tumbler, xarchiver, and all supporting libraries.
 
 depends:
-  # The pre-built XFCE binaries (includes libs in x86_64-linux-gnu for multilib compatibility)
-  - xfce-linux/xfce-binaries.bst
+  # ── XFCE Desktop Environment Components (built from upstream release tags) ─
+  - xfce-linux/libxfce4util.bst
+  - xfce-linux/xfconf.bst
+  - xfce-linux/libxfce4ui.bst
+  - xfce-linux/garcon.bst
+  - xfce-linux/libxfce4windowing.bst
+  - xfce-linux/exo.bst
+  - xfce-linux/xfwm4.bst
+  - xfce-linux/xfce4-panel.bst
+  - xfce-linux/xfce4-session.bst
+  - xfce-linux/xfce4-settings.bst
+  - xfce-linux/xfdesktop.bst
+  - xfce-linux/thunar.bst
+  - xfce-linux/tumbler.bst
+  - xfce-linux/xfce4-appfinder.bst
+  - xfce-linux/xfce4-terminal.bst
+  - xfce-linux/xfce4-notifyd.bst
+  - xfce-linux/xfce4-power-manager.bst
+  - xfce-linux/xfwl4.bst
+
+  # ── Supporting Applications & Config ───────────────────
   # xarchiver — GTK+ archive manager (xfce-linux#56)
   - xfce-linux/xarchiver.bst
   # XFCE default settings
@@ -19,11 +39,7 @@ depends:
   # XFCE users and config
   - xfce-linux/etc-config.bst
 
-
-
-
-  # Core dependencies that everything needs
-
+  # ── Core dependencies that everything needs ────────────
   - freedesktop-sdk.bst:public-stacks/runtime-minimal.bst
   - freedesktop-sdk.bst:components/gtk3.bst
   - gnome-build-meta.bst:sdk/gtk.bst
