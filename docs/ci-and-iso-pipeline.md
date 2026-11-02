@@ -285,7 +285,7 @@ Source caches use the same HOME path as `just bst`.
 CAS archives no longer duplicate sources.
 Architecture and configuration participate in cache keys.
 
-Final and fallback builds restore the newest source snapshot for the same graph hash,
+Final, fallback and changed-element builds restore the newest snapshot for the same graph hash,
 then fall back to the same image, runner OS and architecture.
 Each stage saves a unique key for its run and try, even after a failed build.
 This keeps new sources in the cache. Later builds can restore more than the first seed.
