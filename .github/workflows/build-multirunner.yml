@@ -144,6 +144,16 @@ jobs:
 
       - uses: actions/checkout@v7
 
+      - name: Restore BuildStream sources
+        id: sources
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/buildstream/sources
+          key: bst-sources-${{ env.IMAGE_NAME }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('elements/**/*.bst', 'project.conf', 'include/**', 'patches/**') }}-final-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            bst-sources-${{ env.IMAGE_NAME }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('elements/**/*.bst', 'project.conf', 'include/**', 'patches/**') }}-
+            bst-sources-${{ env.IMAGE_NAME }}-${{ runner.os }}-${{ runner.arch }}-
+
       - run: podman pull "$BST2_IMAGE"
 
       - name: Setup Just
@@ -200,6 +210,18 @@ jobs:
         run: |
           mkdir -p logs
           timeout 300m just bst --log-file /src/logs/build-final.log build ${{ needs.multirunner.outputs.final_target }}
+
+      - name: Stop this workspace's remaining builders
+        id: source_snapshot
+        if: always()
+        run: bash scripts/stop-buildstream-builders.sh "$BST2_IMAGE" "$GITHUB_WORKSPACE"
+
+      - name: Save BuildStream sources after final build
+        if: always() && steps.source_snapshot.outcome == 'success' && steps.sources.outputs.cache-primary-key != '' && steps.sources.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/buildstream/sources
+          key: ${{ steps.sources.outputs.cache-primary-key }}
 
       - name: Check out the artifact and free the CAS
         env:

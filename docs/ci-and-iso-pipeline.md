@@ -284,6 +284,12 @@ The reusable build uses a pinned revision of the bst-ci cache fix.
 Source caches use the same HOME path as `just bst`.
 CAS archives no longer duplicate sources.
 Architecture and configuration participate in cache keys.
+
+Final and fallback builds restore the newest source snapshot for the same graph hash,
+then fall back to the same image, runner OS and architecture.
+Each stage saves a unique key for its run and try, even after a failed build.
+This keeps new sources in the cache. Later builds can restore more than the first seed.
+
 The Brussels identity does not rename `project.conf` or the
 `cache-xfce-linux-*` registry namespaces.
 
@@ -291,6 +297,11 @@ Shared uploads stop leftover builders before they archive the CAS.
 The pinned image and actual workspace mounted at `/src` identify this job's containers.
 Builders for another workspace remain active.
 They omit daemon logs and sockets; a separate artifact contains the full build logs.
+
+A native smoke used two BusyBox containers with different workspaces.
+Both used the same image ID.
+The actual helper stopped only its own container and left the other one active.
+The smoke removed both test containers afterward; it did not run a full BuildStream build.
 
 ### Bounded PR build evidence
 
