@@ -43,9 +43,9 @@ RECIPE_TMP=$(mktemp /tmp/plain-recipe-XXXXXX.json)
 trap 'rm -f "${RECIPE_TMP}"' EXIT
 
 if [[ "${COMPOSEFS_BACKEND}" == "true" ]]; then
-	# Composefs path (dakota): podman-based install with VFS containers-storage.
-	printf '{\n  "disk": "%s",\n  "filesystem": "%s",\n  "image": "%s",\n  "composeFsBackend": true,\n  "bootloader": "%s",\n  "hostname": "xfce-linux-plain-test",\n  "encryption": {"type": "none"},\n  "flatpaks": []\n}\n' \
-		"${DISK}" "${FILESYSTEM}" "${INSTALL_IMAGE}" "${BOOTLOADER}" >"${RECIPE_TMP}"
+	# Empty image selects the immutable OCI source in media-input.json.
+	printf '{\n  "disk": "%s",\n  "filesystem": "%s",\n  "image": "%s",\n  "targetImgref": "%s",\n  "composeFsBackend": true,\n  "bootloader": "%s",\n  "hostname": "brussels-plain-test",\n  "encryption": {"type": "none"},\n  "flatpaks": []\n}\n' \
+		"${DISK}" "${FILESYSTEM}" "${INSTALL_IMAGE}" "${PAYLOAD_IMAGE}" "${BOOTLOADER}" >"${RECIPE_TMP}"
 else
 	# Ostree path (stable, lts): bootcDirect — fisherman runs bootc natively.
 	# Empty image triggers bootcDirect; targetImgref sets the day-2 rebase ref.

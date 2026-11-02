@@ -1,5 +1,5 @@
-PRETTY_NAME="XFCE Linux"
-NAME="XFCE Linux"
+PRETTY_NAME="Brussels (TunaOS)"
+NAME="Brussels"
 VERSION="0.1.0"
 VERSION_ID="0"
 VERSION_CODENAME=brussels
@@ -8,7 +8,7 @@ ID=xfce-linux
 ID_LIKE=fedora
 HOME_URL="https://github.com/tuna-os/xfce-linux"
 BUG_REPORT_URL="https://github.com/tuna-os/xfce-linux/issues"
-DEFAULT_HOSTNAME="xfce-linux"
+DEFAULT_HOSTNAME="brussels"
 LOGO="brussels-logo"
 CPE_NAME="cpe:/o:xfce_linux:xfce_linux:0.1"
 HOME_URL_DOCUMENTATION="https://github.com/tuna-os/xfce-linux"

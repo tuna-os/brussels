@@ -1,19 +1,23 @@
-# XFCE Linux
+# Brussels — TunaOS Xfce
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/tuna-os/xfce-linux/blob/main/LICENSE)
 
-**An OCI image with XFCE Wayland, built through BuildStream** — a lightweight
-and immutable OS image with the XFCE desktop.
+**An experimental Xfce Wayland desktop built with BuildStream.**
+Brussels is part of [TunaOS](https://tunaos.org). It builds on GNOME OS,
+freedesktop-sdk, Xfce, and xfwl4; ISO infrastructure follows
+projectbluefin/dakota and dakota-iso. Credit belongs to those upstream projects.
 
-Part of the [TunaOS](https://tunaos.org) ecosystem.
-The current codename is **Brussels**. The Xfce Foundation e.V. started at
+The repository, BuildStream project identity, and published image remain
+`tuna-os/xfce-linux` to preserve consumers and warm build caches.
+The Brussels name recalls the Xfce Foundation launch:
 FOSDEM in Brussels in 2011
 ([upstream announcement](https://blog.xfce.org/2011/02/xfce-foundation-e-v-launched-at-fosdem/)).
 
-![XFCE Linux wordmark](branding/brussels/xfce-linux-wordmark.svg)
+![Brussels by TunaOS wordmark](branding/brussels/xfce-linux-wordmark.svg)
 
-Brussels is the product codename. Its icon and wallpaper are original TunaOS
-artwork, not official Xfce Foundation branding.
+Brussels artwork is original TunaOS work, not official Xfce Foundation branding.
+This is not yet a qualified production distribution: only passing runtime
+qualification demonstrates a particular candidate's boot and install behavior.
 
 ![Brussels desktop wallpaper preview](branding/brussels/brussels-wallpaper.png)
 
@@ -70,13 +74,13 @@ ready. Thus, downstream download pages can safely use those stable names.
 
 **OCI images:** Image signature verification is not yet in effect. See [`docs/signing.md`](docs/signing.md) for the implementation plan.
 
-**Live ISO signatures** (`.sig` and `.cert` files accompany each dated ISO,
-such as `xfce-linux-live-<date>-<sha>.iso.sig`):
+**Live ISO signatures:** each ISO is accompanied by one Sigstore bundle
+(`.sigstore.json`) containing its signature, certificate and transparency proof.
+Use cosign 3 or newer:
 
 ```bash
 cosign verify-blob xfce-linux-live-<date>-<sha>.iso \
-  --certificate xfce-linux-live-<date>-<sha>.iso.cert \
-  --signature xfce-linux-live-<date>-<sha>.iso.sig \
+  --bundle xfce-linux-live-<date>-<sha>.iso.sigstore.json \
   --certificate-identity-regexp 'https://github.com/tuna-os/xfce-linux/\.github/workflows/build-iso\.yml@.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```

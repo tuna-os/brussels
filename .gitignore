@@ -80,3 +80,8 @@ files/xfce-binaries/
 files/filemap.json
 # Fakecap privilege manifest — generated alongside filemap.json (#17)
 files/fakecap-manifest.tsv
+
+# Mkosi consumes a disposable checkout, never a second BuildStream cache.
+/.mkosi-root/
+/mkosi/ddi/mkosi.output/
+/mkosi/ddi/mkosi.cache/

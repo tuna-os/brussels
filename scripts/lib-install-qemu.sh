@@ -34,15 +34,11 @@ SCP="sshpass -p live scp $SSH_OPTS -P ${SSH_PORT}"
 # ─────────────────────────────────────────────────────────────────────────
 
 lib_resolve_install_image() {
-	# Use local containers-storage if the image is cached there (offline install);
-	# otherwise fall back to a network pull via docker://.
-	if $SSH "sudo podman image exists '${PAYLOAD_IMAGE}' 2>/dev/null"; then
-		echo "containers-storage:${PAYLOAD_IMAGE}"
-		echo "Image found in local containers-storage — using offline install." >&2
-	else
-		echo "docker://${PAYLOAD_IMAGE}"
-		echo "Image not in local store — fisherman will pull from network." >&2
-	fi
+	# Fail before touching a disk if the immutable media contract is absent.
+	$SSH "sudo test -r /etc/bootc-installer/media-input.json"
+	$SSH "sudo test -r /usr/lib/tunaos/payload/index.json"
+	# An empty recipe image selects fisherman's verified, media-bound source.
+	printf ''
 }
 
 # ─────────────────────────────────────────────────────────────────────────

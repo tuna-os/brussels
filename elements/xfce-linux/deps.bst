@@ -19,7 +19,7 @@ depends:
 
   # ── XFCE Session Configuration & Branding ──────────────
   - xfce-linux/session-config.bst
-  # XFCE-logo Plymouth splash (shadows the parent layer's GNOME watermark)
+  # Brussels splash shadows the parent layer's GNOME watermark.
   - xfce-linux/plymouth-theme.bst
   - xfce-linux/branding.bst
 

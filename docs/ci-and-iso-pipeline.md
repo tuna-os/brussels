@@ -21,9 +21,9 @@ elements/**  ──►  Build xfce-linux (Multi-Runner)  ──►  ghcr.io/tuna
 The plan, core, and parallel dependency chunks (steps 1-3) use the shared
 [tuna-os/bst-ci](https://github.com/tuna-os/bst-ci) reusable workflow. Each
 BuildStream desktop repository uses this workflow, with different image names,
-targets, and chunk counts. The local `build_final` job (step 4) uses cosign
-without a key. This process puts the identity of this workflow in the Fulcio
-certificate. The verification instructions in README.md use that identity.
+targets, and chunk counts. The local `build_final` job (step 4) publishes the
+OCI image and signs with a configured cosign key. ISO signing is separate and
+uses GitHub OIDC with a Sigstore bundle.
 
 Free GitHub runners can't hold the whole GNOME+XFCE build, so the workflow
 splits it:
@@ -40,7 +40,8 @@ splits it:
    skips a chunk when GHCR already has its exact cache key.
 4. **build_final** — merges all chunk CAS tarballs, builds the final target,
    `just export` (squash + OCI labels + chunkify), `just lint`
-   (`bootc container lint`), pushes `latest` + date + sha tags (main only).
+   (`bootc container lint`), publishes channel/date/SHA tags on main or stable.
+   Explicit manual branch builds publish only the candidate's SHA tag.
 
 BuildStream settings CI uses live in the checked-in `buildstream-ci.conf`.
 
@@ -58,8 +59,12 @@ They recover after they refresh the GHCR caches.
    initramfs (incl. the `95xfce-linux-isofile` Ventoy dracut module) → final
    stage installs flatpaks (`src/install-flatpaks.sh`) and configures the
    live env (`src/configure-live.sh`).
-2. The recipe squashes the payload image and imports it into VFS container
-   storage inside the squashfs. This process enables the offline installation.
+2. Resolve the payload once to its immutable registry digest. Build the live
+   root from that same digest and copy compressed layers directly to a single
+   read-only OCI layout at `/usr/lib/tunaos/payload` using `scripts/embed-payload.sh`.
+   Its actual manifest/config digests populate `/etc/bootc-installer/media-input.json`.
+   Fisherman verifies this binding before partitioning; no VFS store or network
+   fallback is advertised. Both GUI catalogs track the same media image.
 3. `xfce-linux/src/build-iso.sh` assembles a systemd-boot UEFI ISO.
 
 The live session automatically logs in to XFCE on Wayland through xfwl4 as
@@ -209,3 +214,28 @@ The earlier missing `:latest` publication failure is distinct: merged #147
 unblocked the build and #241 restored scheduled publication. The October 20
 Plain run successfully built its ISO and booted QEMU before this log-access
 failure. This fix does not resolve all guest boot failures.
+
+### Media binding, signing, and candidate qualification (November 2026)
+
+| Symptom | Cause | Fix / invariant |
+| --- | --- | --- |
+| ISO 41333027065 built successfully, but cosign failed with `create bundle file: open : no such file or directory` | cosign 3 ignores deprecated detached signature/certificate output flags and requires a bundle path | Produce and publish `.sigstore.json`; boot-gate before signing or upload; `test_iso_uses_sigstore_bundle_after_boot_gate`. |
+| PR 264 plain and LUKS live boots reached the ready marker and GUI, then fisherman refused installation | Old ISO producer embedded a VFS graph but did not provide the required `media-input.json` + read-only OCI source | Embed one immutable OCI layout and bind the generated contract to its actual platform manifest; empty recipe image selects the verified media source; `test_media_embeds_one_immutable_oci_source`. |
+
+Local producer smoke copied the real image
+`sha256:84594ac69abd7c8ac953d4588d7e92a078bef8d36991e8ade7dcd8a558d3d7da`
+and verified every embedded blob's size and SHA256 (3,318,107,811 bytes).
+This verifies media assembly, not guest boot or installation.
+
+For exact-candidate qualification, manually dispatch `build-multirunner.yml`
+on the branch with `push_image=true`. Only its SHA tag is published.
+Use that exact reference as `payload_image` when dispatching `build-iso.yml`,
+`test-plain-install.yml` and `test-luks-install.yml` on the same branch.
+Branch ISO runs never upload to release R2 paths; `skip_upload=false` still
+exercises keyless signing and retains the bundle as an artifact.
+The chained ISO build uses the image workflow's SHA tag, never a moving latest tag.
+
+The reusable build is pinned to the bst-ci cache fix: source caches are mounted
+at the same HOME path used by `just bst`, CAS archives no longer duplicate
+sources, and architecture/config participate in cache keys. Product branding does
+not rename `project.conf` or the `cache-xfce-linux-*` registry namespaces.

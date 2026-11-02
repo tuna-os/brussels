@@ -15,6 +15,11 @@ on:
   # change can affect it (round-robin with the plain test; see test.yml).
   workflow_call:
   workflow_dispatch:
+    inputs:
+      payload_image:
+        description: 'Exact candidate image (empty uses the checked-in payload_ref)'
+        type: string
+        default: ''
   schedule:
     # Weekly on Monday 04:00 UTC
     - cron: '0 4 * * 1'
@@ -45,6 +50,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Select candidate payload
+        if: inputs.payload_image != ''
+        env:
+          PAYLOAD_IMAGE: ${{ inputs.payload_image }}
+        run: printf '%s\n' "$PAYLOAD_IMAGE" > "$TARGET/payload_ref"
 
       - name: Ensure screenshots branch exists
         continue-on-error: true
@@ -82,7 +93,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
-            podman buildah skopeo mtools xorriso squashfs-tools \
+            podman buildah skopeo jq mtools xorriso squashfs-tools \
             qemu-system-x86 qemu-utils ovmf socat sshpass imagemagick -qq
 
       - name: Log in to GHCR

@@ -1,10 +1,10 @@
-# XFCE Linux — Agent Context
+# Brussels — Agent Context
 
-XFCE Linux is a BuildStream-based, vanilla-from-source XFCE (Wayland, xfwl4)
-OCI/bootc image. Sister project of `tuna-os/tromso` (KDE + Aurora layer);
-both are modeled on projectbluefin/dakota + dakota-iso. An opinionated
-experience layer on top (like tromso's Aurora layer) is planned but not yet
-started.
+Brussels is TunaOS's experimental BuildStream-based Xfce Wayland (xfwl4)
+OCI/bootc image. The repository, BuildStream project and image remain
+`xfce-linux` to preserve consumers and caches. Sister projects are Athens
+(Pantheon) and Tromsø (KDE). Upstream GNOME OS, freedesktop-sdk, Xfce and
+projectbluefin/dakota infrastructure retain their credit.
 
 ## Architecture
 
@@ -48,9 +48,16 @@ Heavy builds should run in CI, not on a laptop.
   flatpak remote (`https://tunaos.org/flatpak/tuna-os.flatpakrepo`), baked
   into the ISO only — never into the OS image. Keep
   `install-flatpaks.sh` and `configure-live.sh` referring to the *same* app ID.
-- Plymouth: the gnomeos parent already ships plymouth + GNOME watermark;
-  `elements/xfce-linux/plymouth-theme.bst` shadows it (XFCE logo) and must
-  keep its `runtime-depends` on the GNOME theme to win the staging order.
+- Plymouth: GNOME OS supplies the bgrt/spinner theme.
+  `elements/xfce-linux/plymouth-theme.bst` installs original Brussels artwork;
+  retain its runtime dependency on the GNOME theme for staging order.
+- Live media embeds `/usr/lib/tunaos/payload` as a read-only OCI layout.
+  `scripts/embed-payload.sh` records the actual platform manifest/config in
+  `/etc/bootc-installer/media-input.json`; fisherman must verify it before
+  partitioning. Never reintroduce VFS/network fallback or omit this contract.
+- Live and embedded payloads resolve from one immutable registry digest.
+- ISO signing uses a Sigstore `.sigstore.json` bundle (cosign 3+), not the
+  deprecated detached `.sig`/`.cert` flags.
 - Renovate handles Actions/containers; `.bst` refs are bumped by
   `track-bst-sources.yml` (`bst source track`). Junction bumps
   (freedesktop-sdk, gnome-build-meta) are review-required.

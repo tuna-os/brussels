@@ -159,3 +159,37 @@ def test_qemu_serial_readers_use_qemu_privileges():
     assert len(readers) >= 6
     for line in readers:
         assert re.search(r"sudo (?:grep|tail)\b", line), line
+
+
+def test_media_embeds_one_immutable_oci_source():
+    """Fisherman refuses live media without its verified OCI binding."""
+    producer = (REPO / "scripts/embed-payload.sh").read_text()
+    recipes = (REPO / "iso.justfile").read_text()
+    assert 'schemaVersion: 1' in producer
+    assert 'platformManifestDigest: $manifest' in producer
+    assert 'ociLayoutPath: "/usr/lib/tunaos/payload"' in producer
+    assert 'targetImgref: $image' in producer
+    assert 'skopeo copy' in producer
+    assert 'buildah commit --squash' not in recipes
+    assert '"${PINNED_IMAGE}"' in recipes
+    for script in ("plain-install-qemu.sh", "luks-install-qemu.sh"):
+        text = (REPO / "scripts" / script).read_text()
+        assert "targetImgref" in text
+    resolver = (REPO / "scripts/lib-install-qemu.sh").read_text()
+    assert "media-input.json" in resolver
+    assert 'echo "docker://' not in resolver
+
+
+def test_iso_uses_sigstore_bundle_after_boot_gate():
+    workflow = (REPO / ".github/workflows/build-iso.yml").read_text()
+    assert '--bundle "${ISO}.sigstore.json"' in workflow
+    assert "--output-signature" not in workflow
+    assert "--output-certificate" not in workflow
+    assert workflow.index("Boot verification (UEFI + serial)") < workflow.index("Sign ISO")
+    assert workflow.index("Boot verification (UEFI + serial)") < workflow.index("Upload ISO to")
+
+
+def test_manual_candidates_do_not_move_channel_tags():
+    workflow = (REPO / ".github/workflows/build-multirunner.yml").read_text()
+    assert 'TAGS="${{ github.sha }}"' in workflow
+    assert 'elif [ "${{ github.ref }}" = "refs/heads/main" ]' in workflow

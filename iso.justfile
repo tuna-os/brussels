@@ -40,19 +40,16 @@ build-bg target:
     echo "Build PID $! — tailing log (Ctrl-C is safe, build continues)"
     tail -f "${LOG}"
 
-container target:
+container target base_image="":
     #!/usr/bin/bash
     set -euo pipefail
-    # Pre-squash base image to avoid disk explosion during multi-layer pulls
-    BASE_IMAGE=$(grep '^ARG BASE_IMAGE=' ./{{target}}/Containerfile | cut -d= -f2)
-    echo "Squashing base image: ${BASE_IMAGE}"
-    SQUASH_CTR=$(sudo buildah from --pull-never "${BASE_IMAGE}" 2>/dev/null || sudo buildah from "${BASE_IMAGE}")
-    sudo buildah commit --squash "${SQUASH_CTR}" oci-archive:/tmp/squashed-base.oci:"${BASE_IMAGE}"
-    sudo podman load -i /tmp/squashed-base.oci
-    rm -f /tmp/squashed-base.oci
-
+    BASE_IMAGE="{{base_image}}"
+    if [[ -z "$BASE_IMAGE" ]]; then
+        BASE_IMAGE=$(cat '{{target}}/payload_ref')
+    fi
+    # Immutable digests let Podman reuse the live configuration/Flatpak layers.
     sudo podman build --cap-add sys_admin --security-opt label=disable \
-        --layers \
+        --pull=missing --layers \
         --build-arg BASE_IMAGE="${BASE_IMAGE}" \
         --build-arg DEBUG={{debug}} \
         --build-arg INSTALLER_CHANNEL={{installer_channel}} \
@@ -74,10 +71,13 @@ iso-sd-boot target:
     #!/usr/bin/bash
     set -euo pipefail
 
-    # Read payload ref from file (defaults to localhost/<target>:latest if missing)
-    PAYLOAD_REF="$(cat '{{target}}/payload_ref' 2>/dev/null | tr -d '[:space:]' || echo "localhost/{{target}}:latest")"
-
-    just debug={{debug}} installer_channel={{installer_channel}} container {{target}}
+    PAYLOAD_REF="$(tr -d '[:space:]' < '{{target}}/payload_ref')"
+    DIGEST=$(skopeo inspect --override-os linux --override-arch amd64 \
+        "docker://${PAYLOAD_REF}" | jq -er '.Digest')
+    PINNED_IMAGE="${PAYLOAD_REF%@*}"
+    PINNED_IMAGE="${PINNED_IMAGE%:*}@${DIGEST}"
+    # Both live root and install payload must come from the very same image.
+    just debug={{debug}} installer_channel={{installer_channel}} container {{target}} "${PINNED_IMAGE}"
     mkdir -p {{output_dir}}
     OUTPUT_DIR=$(realpath "{{output_dir}}")
 
@@ -91,47 +91,19 @@ iso-sd-boot target:
 
     SQUASHFS="${OUTPUT_DIR}/{{target}}-rootfs.sfs"
     BOOT_TAR="${OUTPUT_DIR}/{{target}}-boot-files.tar"
-    CS_STAGING="${OUTPUT_DIR}/{{target}}-cs-staging"
     SQUASHFS_ROOT="${OUTPUT_DIR}/{{target}}-sfs-root"
-    trap "rm -f '${SQUASHFS}' '${BOOT_TAR}' '${OUTPUT_DIR}/{{target}}-payload.oci.tar'; _ns_rm '${CS_STAGING}' '${SQUASHFS_ROOT}' 2>/dev/null || true" EXIT
+    trap "rm -f '${SQUASHFS}' '${BOOT_TAR}'; _ns_rm '${SQUASHFS_ROOT}' 2>/dev/null || true" EXIT
     echo "Building squashfs and boot tar from localhost/{{target}}-installer..."
     _ns "
         set -euo pipefail
         MOUNT=\$(podman image mount localhost/{{target}}-installer)
         PATH=/usr/sbin:/usr/bin:/home/linuxbrew/.linuxbrew/bin:\$PATH
 
-        PAYLOAD_OCI='${OUTPUT_DIR}/{{target}}-payload.oci.tar'
-        CS_STAGING='${CS_STAGING}'
         SQUASHFS_ROOT='${SQUASHFS_ROOT}'
-        SQUASHFS_STORAGE=\"\${CS_STAGING}/var/lib/containers/storage\"
-        STORAGE_CONF=\"\$(mktemp '${OUTPUT_DIR}'/live-storage-XXXXXX.conf)\"
-        mkdir -p \"\${SQUASHFS_STORAGE}\"
-        printf '[storage]\ndriver = \"vfs\"\nrunroot = \"/tmp/cs-runroot\"\ngraphroot = \"/vfs-storage\"\n' \
-            > \"\${STORAGE_CONF}\"
-
-        echo 'Squashing xfce-linux image layers to reduce disk footprint...'
-        SQUASH_CTR=\$(buildah from --pull-never \"${PAYLOAD_REF}\")
-        buildah commit --squash \"\${SQUASH_CTR}\" oci-archive:\${PAYLOAD_OCI}:${PAYLOAD_REF}
-
-        echo 'Importing xfce-linux OCI image into squashfs containers-storage...'
-        podman run --rm \
-            --privileged \
-            -v \"\${PAYLOAD_OCI}:/payload.oci.tar:ro\" \
-            -v \"\${SQUASHFS_STORAGE}:/vfs-storage\" \
-            -v \"\${STORAGE_CONF}:/tmp/st.conf:ro\" \
-            localhost/{{target}}-installer \
-            sh -c 'mkdir -p /tmp/cs-runroot /var/tmp && CONTAINERS_STORAGE_CONF=/tmp/st.conf skopeo copy oci-archive:/payload.oci.tar:${PAYLOAD_REF} containers-storage:${PAYLOAD_REF}'
-
-        rm -f \"\${PAYLOAD_OCI}\" \"\${STORAGE_CONF}\"
-
         echo 'Building unified squashfs source tree...'
         mkdir -p \"\${SQUASHFS_ROOT}\"
-        cp -a --reflink=auto \"\${MOUNT}/.\" \"\${SQUASHFS_ROOT}/\" 2>/dev/null || \
-            cp -a \"\${MOUNT}/.\" \"\${SQUASHFS_ROOT}/\"
-        mkdir -p \"\${SQUASHFS_ROOT}/var/lib/containers/storage\"
-        cp -a \"\${CS_STAGING}/var/lib/containers/storage/.\" \
-            \"\${SQUASHFS_ROOT}/var/lib/containers/storage/\"
-        rm -rf \"\${CS_STAGING}\"
+        cp -a --reflink=auto \"\${MOUNT}/.\" \"\${SQUASHFS_ROOT}/\"
+        bash scripts/embed-payload.sh \"\${SQUASHFS_ROOT}\" '${PINNED_IMAGE}' '${PAYLOAD_REF}'
 
         SFS_LEVEL=3; SFS_BLOCK=131072
         [[ '{{compression}}' == 'release' ]] && { SFS_LEVEL=15; SFS_BLOCK=1048576; }

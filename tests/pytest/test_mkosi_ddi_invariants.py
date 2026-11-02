@@ -17,13 +17,14 @@ def test_mkosi_uses_one_buildstream_compose_root():
     parsed = ConfigParser(interpolation=None)
     parsed.read_string(config)
 
-    assert parsed["Config"]["MinimumVersion"] == "28~devel"
-    assert parsed["Distribution"]["Distribution"] == "buildstream"
-    assert parsed["Build"]["ToolsTree"] == "default"
+    assert parsed["Config"]["MinimumVersion"] == "26"
+    assert parsed["Distribution"]["Distribution"] == "custom"
+    assert parsed["Content"]["BaseTrees"] == "../../.mkosi-root"
     assert parsed["Output"]["RepartDirectories"] == "mkosi.repart"
-    assert parsed["Output"]["Bootable"] == "yes"
-    packages = [line for line in config.splitlines() if line.startswith("Packages=")]
-    assert packages == ["Packages=mkosi/xfce-linux-ddi.bst"]
+    assert parsed["Content"]["Bootable"] == "yes"
+    recipe = _read("just/mkosi-ddi.just")
+    assert "just bst build mkosi/xfce-linux-ddi.bst" in recipe
+    assert "just bst artifact checkout --force mkosi/xfce-linux-ddi.bst" in recipe
     assert "kind: compose" in target
     assert "oci/layers/xfce-linux-runtime.bst" in target
     assert "oci/xfce-linux.bst" not in config
@@ -50,6 +51,7 @@ def test_repository_os_identity_reaches_oci_and_ddi():
 
     assert "ID=xfce-linux" in os_release
     assert "VERSION_CODENAME=brussels" in os_release
+    assert 'PRETTY_NAME="Brussels (TunaOS)"' in os_release
     assert "oci/os-release.bst" in oci
     assert "/identity/usr/lib/os-release /layer/usr/lib/os-release" in oci
     assert "ExtraTrees=../../files/etc/os-release:/usr/lib/os-release" in ddi_config
@@ -63,7 +65,7 @@ def test_local_ddi_recipe_does_not_replace_bootc_disk_recipe():
     recipe = _read("just/mkosi-ddi.just")
     bootc_recipe = _read("just/disk-image.just")
 
-    assert "mkosi --directory=mkosi/ddi build" in recipe
+    assert "mkosi --directory=mkosi/ddi" in recipe
     assert "Format=disk" in _read("mkosi/ddi/mkosi.conf")
     assert "bootc install to-disk" in bootc_recipe
     assert "push" not in recipe
