@@ -139,6 +139,7 @@ jobs:
           sudo qemu-system-x86_64 \
             -machine type=q35,accel=kvm -cpu host -m 4G -smp 2 \
             "${PFLASH[@]}" -cdrom "$ISO" -boot d \
+            -device virtio-vga \
             -monitor unix:/tmp/qemu-monitor.sock,server,nowait \
             -serial file:/tmp/serial.log -display none -daemonize
           trap 'echo quit | sudo socat - UNIX-CONNECT:/tmp/qemu-monitor.sock >/dev/null 2>&1 || true' EXIT
