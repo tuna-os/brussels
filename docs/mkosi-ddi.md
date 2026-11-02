@@ -1,43 +1,49 @@
 # Local Mkosi DDI (experimental)
 
-Brussels has a separate, experimental raw-GPT image path. It does not replace
-the live ISO or bootc `install to-disk`, and is not a supported installation or
-upgrade path. The repository and image identity remain `xfce-linux`.
+Brussels has a separate path for raw-GPT images. This path is experimental.
+It does not replace the live ISO or bootc `install to-disk`.
+Do not use it for a supported installation or upgrade.
+The repository and image identity remain `xfce-linux`.
 
 ## Build locally
 
-Install Mkosi 26 or newer, systemd-repart, and the normal Podman/BuildStream
-project dependencies. Run from the repository root:
+Install Mkosi 26 or newer and systemd-repart.
+Also install the project's dependencies for Podman and BuildStream.
+Run from the repository root:
 
 ```sh
 just mkosi-ddi
 ```
 
-The recipe builds the single compose target `mkosi/xfce-linux-ddi.bst` using
-`just bst`, so it shares the normal containerized BuildStream configuration and
-`$HOME/.cache/buildstream` rather than starting another independent build/cache.
-It checks out the runtime into disposable `.mkosi-root` and passes that tree to
-Mkosi's stable `Distribution=custom` backend through `BaseTrees=`. This avoids
-assuming a `bst` binary and project root exist inside Mkosi's default tools
-sandbox. The matching initramfs is taken from that tree's newest kernel, not
-built using unrelated host packages. Missing kernel/initramfs fails the recipe.
+The recipe builds one compose target, `mkosi/xfce-linux-ddi.bst`, with `just bst`.
+It shares the BuildStream container and `$HOME/.cache/buildstream` with other builds.
+It does not create another cache.
 
-`files/etc/os-release` overlays the same Brussels/TunaOS identity used by the
-OCI build. The repart layout declares a 512 MiB EFI System Partition and an
-ext4 root partition of at least 8 GiB. Mkosi installs systemd-boot.
+It checks out the runtime into disposable `.mkosi-root`.
+Mkosi's stable `Distribution=custom` backend consumes that tree through `BaseTrees=`.
+This avoids a dependency on `bst` inside Mkosi's sandbox.
+The recipe selects the initramfs from the newest kernel in that tree.
+It does not build an initramfs from unrelated host packages.
+The recipe fails if the kernel or initramfs is absent.
 
-Output is `mkosi/ddi/mkosi.output/xfce-linux-ddi.raw`. To remove local outputs
-and the disposable checkout, run `just mkosi-ddi-clean`. This recipe does not
-push, sign or publish anything. BuildStream's shared cache is not removed.
+`files/etc/os-release` supplies the same Brussels/TunaOS identity as the OCI build.
+The repart layout declares an EFI partition of 512 MiB.
+It also declares an ext4 root partition of at least 8 GiB.
+Mkosi installs systemd-boot.
 
-## Evidence and remaining qualification
+Output is `mkosi/ddi/mkosi.output/xfce-linux-ddi.raw`.
+Run `just mkosi-ddi-clean` to remove local outputs and the disposable checkout.
+This recipe does not push, sign or publish anything.
+It preserves BuildStream's shared cache.
 
-The Mkosi 27.1 configuration parser has been exercised against this configuration.
-The full DDI has not been assembled or booted. In particular, the GNOME OS
-initramfs must still be shown to discover and mount this non-bootc ext4 root,
-and EFI, desktop startup, and reboot remain unqualified. Do not infer bootc
-deployment/update semantics from the presence of bootc in the root tree.
+## Evidence and limits
 
-Full OS builds and KVM qualification belong on sufficiently sized CI runners;
-the review host has no `/dev/kvm` and cannot hold a full world build. The main
-OCI/live/plain/LUKS pipeline remains independent of this experimental output.
+The review exercised the Mkosi 27.1 configuration parser.
+It did not assemble or boot the full DDI.
+The GNOME OS initramfs must still demonstrate root discovery for this ext4 layout.
+EFI, desktop startup, and reboot also need qualification.
+The presence of bootc does not imply bootc deployment or update semantics.
+
+Full OS builds and KVM qualification need CI runners with enough disk space.
+The review host has no `/dev/kvm` and cannot hold a full world build.
+The main OCI/live/plain/LUKS pipeline remains independent of this experimental output.

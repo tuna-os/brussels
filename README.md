@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/tuna-os/xfce-linux/blob/main/LICENSE)
 
-**An experimental Xfce Wayland desktop built with BuildStream.**
+**An experimental desktop with Xfce on Wayland, built with BuildStream.**
 Brussels is part of [TunaOS](https://tunaos.org). It builds on GNOME OS,
 freedesktop-sdk, Xfce, and xfwl4; ISO infrastructure follows
 projectbluefin/dakota and dakota-iso. Credit belongs to those upstream projects.
@@ -15,9 +15,9 @@ FOSDEM in Brussels in 2011
 
 ![Brussels by TunaOS wordmark](branding/brussels/xfce-linux-wordmark.svg)
 
-Brussels artwork is original TunaOS work, not official Xfce Foundation branding.
-This is not yet a qualified production distribution: only passing runtime
-qualification demonstrates a particular candidate's boot and install behavior.
+Brussels artwork is original TunaOS work, not artwork from the Xfce Foundation.
+This is not yet a qualified production distribution.
+Runtime checks must demonstrate each candidate's boot and install behavior.
 
 ![Brussels desktop wallpaper preview](branding/brussels/brussels-wallpaper.png)
 
@@ -41,7 +41,12 @@ Never post account credentials or API keys in issues or pull requests.
 - **Lightweight** — XFCE desktop optimized for low-resource systems
 - **Immutable** — OCI-based, atomic updates via `bootc`
 - **Wayland** — modern display protocol
-- **BuildStream** — reproducible builds from source
+- **BuildStream** — a pinned graph for the OS and desktop archive
+
+The Xfce runtime now uses a pinned binary archive from
+[hanthor/xfce-wayland](https://github.com/hanthor/xfce-wayland).
+BuildStream builds the rest of the OS.
+The complete desktop does not yet build from source in this project.
 
 ## Quick Start
 
@@ -74,8 +79,8 @@ ready. Thus, downstream download pages can safely use those stable names.
 
 **OCI images:** Image signature verification is not yet in effect. See [`docs/signing.md`](docs/signing.md) for the implementation plan.
 
-**Live ISO signatures:** each ISO is accompanied by one Sigstore bundle
-(`.sigstore.json`) containing its signature, certificate and transparency proof.
+**Live ISO signatures:** each ISO has a Sigstore bundle (`.sigstore.json`).
+The bundle contains its signature, certificate and transparency proof.
 Use cosign 3 or newer:
 
 ```bash
@@ -88,7 +93,7 @@ cosign verify-blob xfce-linux-live-<date>-<sha>.iso \
 ## Docs
 
 - [XFCE Linux on tunaos.org](https://tunaos.org/docs/xfce-linux)
-- [Experimental local Mkosi DDI](docs/mkosi-ddi.md)
+- [Local DDI with Mkosi (experimental)](docs/mkosi-ddi.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## License
