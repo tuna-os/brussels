@@ -121,7 +121,7 @@ jobs:
           echo "path=output/xfce-linux-live.iso" >> "$GITHUB_OUTPUT"
 
       - name: Boot verification (UEFI + serial)
-        timeout-minutes: 10
+        timeout-minutes: 12
         run: |
           ISO="${{ steps.iso.outputs.path }}"
           sudo apt-get install -y qemu-system-x86 ovmf socat imagemagick -qq
@@ -132,28 +132,27 @@ jobs:
           for f in /usr/share/OVMF/OVMF_VARS_4M.fd /usr/share/OVMF/OVMF_VARS.fd /usr/share/edk2/ovmf/OVMF_VARS.fd; do
             if [ -f "$f" ]; then cp "$f" /tmp/EFI_VARS.fd; break; fi
           done
-          PFLASH=()
-          [ -n "$EFI_CODE" ] && [ -f /tmp/EFI_VARS.fd ] && \
-            PFLASH+=(-drive "if=pflash,format=raw,readonly=on,file=$EFI_CODE" \
-                     -drive "if=pflash,format=raw,file=/tmp/EFI_VARS.fd")
+          [ -n "$EFI_CODE" ] && [ -f /tmp/EFI_VARS.fd ] || \
+            { echo "ERROR: UEFI firmware files are missing"; exit 1; }
+          PFLASH=(-drive "if=pflash,format=raw,readonly=on,file=$EFI_CODE"
+                  -drive "if=pflash,format=raw,file=/tmp/EFI_VARS.fd")
           sudo qemu-system-x86_64 \
             -machine type=q35,accel=kvm -cpu host -m 4G -smp 2 \
             "${PFLASH[@]}" -cdrom "$ISO" -boot d \
             -monitor unix:/tmp/qemu-monitor.sock,server,nowait \
             -serial file:/tmp/serial.log -display none -daemonize
+          trap 'echo quit | sudo socat - UNIX-CONNECT:/tmp/qemu-monitor.sock >/dev/null 2>&1 || true' EXIT
           for i in $(seq 1 30); do [ -S /tmp/qemu-monitor.sock ] && break; sleep 2; done
           for i in $(seq 1 60); do
             sudo grep -q "XFCE_LINUX_LIVE_READY" /tmp/serial.log 2>/dev/null && { echo "==> Ready after $((i*5))s"; break; }
             [ "$i" -eq 60 ] && echo "WARNING: ready token not seen after 5m" || true
             sleep 5
           done
-          echo "screendump /tmp/screenshot.ppm" | sudo socat - UNIX-CONNECT:/tmp/qemu-monitor.sock || true
-          sleep 2
-          sudo test -f /tmp/screenshot.ppm && \
-            { sudo convert /tmp/screenshot.ppm screenshot.png 2>/dev/null || sudo cp /tmp/screenshot.ppm screenshot.png; }
-          echo "quit" | sudo socat - UNIX-CONNECT:/tmp/qemu-monitor.sock || true
-          sudo grep -qE "XFCE_LINUX_LIVE_READY|Finished live-ready\.service" /tmp/serial.log || \
+          sudo grep -q "XFCE_LINUX_LIVE_READY" /tmp/serial.log || \
             { echo "ERROR: Live environment did not reach ready state"; sudo tail -50 /tmp/serial.log; exit 1; }
+          sudo python3 xfce-linux/src/luks-unlock.py wait-live \
+            /tmp/qemu-monitor.sock /tmp/screenshot.ppm
+          sudo convert /tmp/screenshot.ppm screenshot.png
       - name: Generate SHA256 checksum
         id: checksum
         run: |

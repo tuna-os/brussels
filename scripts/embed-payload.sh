@@ -2,7 +2,7 @@
 # Embed the one verified OCI source consumed by fisherman on live media.
 set -euo pipefail
 
-root=${1:?Usage: embed-payload.sh ROOT PINNED_IMAGE UPDATE_REF}
+root=${1:?Usage: embed-payload.sh ROOT SOURCE_TRANSPORT UPDATE_REF}
 source_image=${2:?Missing immutable source image}
 update_ref=${3:?Missing update-tracking image reference}
 layout="$root/usr/lib/tunaos/payload"
@@ -10,7 +10,7 @@ mkdir -p "$layout" "$root/etc/bootc-installer"
 # Store compressed registry layers directly, not a second expanded VFS graph.
 skopeo copy --override-os linux --override-arch amd64 \
     --dest-compress-format gzip \
-    "docker://$source_image" "oci:$layout:payload"
+    "$source_image" "oci:$layout:payload"
 manifest_digest=$(jq -er '.manifests | select(length == 1) | .[0].digest' "$layout/index.json")
 manifest="$layout/blobs/${manifest_digest/:/\/}"
 config_digest=$(jq -er '.config.digest' "$manifest")

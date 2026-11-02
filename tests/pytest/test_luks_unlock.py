@@ -288,6 +288,12 @@ class TestLuksUnlock(unittest.TestCase):
         self.assertEqual(mock_screendump.call_count, 4)
         mock_copy.assert_called_with("/tmp/luks-live-boot-snap.ppm", "/tmp/screenshot.ppm")
 
+    @patch("luks_unlock.qemu_screendump", return_value=(2.0, "bright-frame"))
+    @patch("shutil.copy2", side_effect=PermissionError("screenshot denied"))
+    def test_run_wait_live_screenshot_failure_propagates(self, mock_copy, mock_screendump):
+        with self.assertRaises(PermissionError):
+            luks_unlock.run_wait_live("/tmp/sock", "/tmp/unwritable-screenshot.ppm")
+
     @patch("luks_unlock.qemu_screendump")
     @patch("time.sleep")
     @patch("shutil.copy2")
@@ -295,7 +301,9 @@ class TestLuksUnlock(unittest.TestCase):
         # Always dark, or never stable
         mock_screendump.return_value = (0.1, 'a')
         with patch("time.time", side_effect=[0, 100, 200, 301]):
-            luks_unlock.run_wait_live("/tmp/sock", "/tmp/screenshot.ppm")
+            with self.assertRaises(SystemExit) as result:
+                luks_unlock.run_wait_live("/tmp/sock", "/tmp/screenshot.ppm")
+            self.assertEqual(result.exception.code, 1)
         # Should not copy since brightness < threshold
         mock_copy.assert_not_called()
 
@@ -310,7 +318,9 @@ class TestLuksUnlock(unittest.TestCase):
             (2.0, 'd')
         ]
         with patch("time.time", side_effect=[0, 100, 200, 301]):
-            luks_unlock.run_wait_live("/tmp/sock", "/tmp/screenshot.ppm")
+            with self.assertRaises(SystemExit) as result:
+                luks_unlock.run_wait_live("/tmp/sock", "/tmp/screenshot.ppm")
+            self.assertEqual(result.exception.code, 1)
         # Should copy the bright frames
         self.assertTrue(mock_copy.called)
 

@@ -74,8 +74,9 @@ iso-sd-boot target:
     PAYLOAD_REF="$(tr -d '[:space:]' < '{{target}}/payload_ref')"
     PINNED_IMAGE=$(skopeo inspect --override-os linux --override-arch amd64 \
         "docker://${PAYLOAD_REF}" | jq -er '.Name + "@" + .Digest')
-    # Both live root and install payload must come from the very same image.
-    just debug={{debug}} installer_channel={{installer_channel}} container {{target}} "${PINNED_IMAGE}"
+    # Prepare composefs source before adding any live-only installer files.
+    PREPARED_IMAGE=$(sudo bash scripts/prepare-payload.sh "${PINNED_IMAGE}" "{{target}}")
+    just debug={{debug}} installer_channel={{installer_channel}} container {{target}} "${PREPARED_IMAGE}"
     mkdir -p {{output_dir}}
     OUTPUT_DIR=$(realpath "{{output_dir}}")
 
@@ -101,7 +102,7 @@ iso-sd-boot target:
         echo 'Building unified squashfs source tree...'
         mkdir -p \"\${SQUASHFS_ROOT}\"
         cp -a --reflink=auto \"\${MOUNT}/.\" \"\${SQUASHFS_ROOT}/\"
-        bash scripts/embed-payload.sh \"\${SQUASHFS_ROOT}\" '${PINNED_IMAGE}' '${PAYLOAD_REF}'
+        bash scripts/embed-payload.sh \"\${SQUASHFS_ROOT}\" 'containers-storage:${PREPARED_IMAGE}' '${PAYLOAD_REF}'
 
         SFS_LEVEL=3; SFS_BLOCK=131072
         [[ '{{compression}}' == 'release' ]] && { SFS_LEVEL=15; SFS_BLOCK=1048576; }
@@ -375,7 +376,7 @@ luks-boot-qemu-live target:
     # Wait for the live boot GUI to render and stabilize before screenshotting
     sudo python3 "{{target}}/src/luks-unlock.py" wait-live \
         "{{luks-qemu-monitor-live}}" \
-        "/tmp/luks-screenshot-live.ppm" || true
+        "/tmp/luks-screenshot-live.ppm"
 
 # Run fisherman LUKS install via SSH into the live QEMU VM.
 luks-install-qemu target:
@@ -521,7 +522,7 @@ plain-wait-boot target:
         if sudo grep -qE "Started gdm\.service|Started GNOME Display Manager|Started gnome-initial-setup" "{{plain-qemu-serial-installed}}" 2>/dev/null; then
             echo "Installed system booted successfully"
             sudo python3 "{{target}}/src/luks-unlock.py" wait-live \
-                "{{plain-qemu-monitor-installed}}" "/tmp/plain-screenshot-final.ppm" || true
+                "{{plain-qemu-monitor-installed}}" "/tmp/plain-screenshot-final.ppm"
             bash "{{target}}/src/show-screenshot.sh" /tmp/plain-screenshot-final.ppm "Installed boot (plain)" || true
             exit 0
         fi

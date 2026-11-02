@@ -56,6 +56,12 @@ Heavy builds should run in CI, not on a laptop.
   `/etc/bootc-installer/media-input.json`; fisherman must verify it before
   partitioning. Never reintroduce VFS/network fallback or omit this contract.
 - Live and embedded payloads resolve from one immutable registry digest.
+- `scripts/prepare-payload.sh` applies the dakota-iso composefs contract:
+  source-only squash, valid root-mount TOML, and the actual final layer diffid
+  as both label and OCI annotation. Do not embed the raw chunked registry image
+  or leak live-only configuration into the installation payload.
+- Target Ubuntu's Skopeo 1.13.3; use `--dest-compress-format gzip`, not the
+  unsupported `--dest-force-compress-format` flag.
 - ISO signing uses a Sigstore `.sigstore.json` bundle (cosign 3+), not the
   deprecated detached `.sig`/`.cert` flags.
 - Renovate handles Actions/containers; `.bst` refs are bumped by

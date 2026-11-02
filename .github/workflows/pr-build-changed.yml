@@ -77,7 +77,7 @@ jobs:
       - name: Build changed elements
         if: steps.changed.outputs.elements != ''
         env:
-          BST_FLAGS: --no-interactive --config /src/buildstream-ci.conf
+          BST_FLAGS: --no-interactive --on-error quit --config /src/buildstream-ci.conf
         run: |
           mkdir -p logs
           # A timeout is not proof that the changed elements build.

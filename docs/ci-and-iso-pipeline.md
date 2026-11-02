@@ -62,8 +62,14 @@ They recover after they refresh the GHCR caches.
 2. Resolve the payload once to its immutable registry digest.
    Combine the canonical name from the registry with its digest. Do not include a tag.
    Skopeo rejects a reference that combines a tag and digest.
-   Build the live root from that same digest.
-   `scripts/embed-payload.sh` copies compressed layers to an OCI layout at
+   `scripts/prepare-payload.sh` prepares a source image before live-only changes.
+   It injects the root-mount policy and squashes all layers for composefs.
+   It records the actual layer diffid as an OCI label and annotation.
+   Both use the name `ostree.final-diffid`, as in dakota-iso's payload helper.
+   The cache key includes the source digest and preparation version.
+   A cache hit avoids another pull or squash.
+   The live container and install payload use the same prepared source.
+   `scripts/embed-payload.sh` copies it from container storage to an OCI layout at
    `/usr/lib/tunaos/payload`. Its actual manifest/config digests populate
    `/etc/bootc-installer/media-input.json`.
    Fisherman verifies this contract before it partitions the disk.
@@ -263,6 +269,26 @@ Architecture and configuration participate in cache keys.
 The Brussels identity does not rename `project.conf` or the
 `cache-xfce-linux-*` registry namespaces.
 
+Shared uploads stop containers that remain active before they archive the CAS.
+They omit daemon logs and sockets; a separate artifact contains the full build logs.
+
+### Composefs source preparation
+
+The producer follows dakota-iso's source-only preparation contract.
+It injects valid TOML at `/usr/lib/bootc/install/00-defaults.toml`:
+`root-mount-spec = "LABEL=root"` under `[install]`.
+After a full squash, it reads the actual layer diffid.
+It writes that value as both the `ostree.final-diffid` label and OCI annotation.
+It publishes the local cache tag only after those values match the final layer.
+No live user, installer, Flatpak, or debug configuration enters this payload.
+
+A bounded smoke used Python's image for Alpine, with four layers.
+Podman prepared a layer and preserved the inherited command.
+Skopeo 1.13.3 exported that layer with gzip and both diffid fields intact.
+The smoke verified all blob hashes and sizes, and extracted the exact root-mount TOML.
+A second invocation reused the prepared image without any build output.
+This verifies the transformation, not the TunaOS installation.
+
 ### Desktop appearance and wallpaper defaults
 
 The Brussels wallpaper has an Xfconf system default under
@@ -284,3 +310,10 @@ The pinned desktop executable contains a fallback path under its developer's
 `/var/home/james/dev/xfce-wayland/install` prefix.
 We did not add a compatibility symlink for that path.
 The new candidate still needs visual and installation qualification.
+
+Live GUI checks fail if the screen remains dark or unstable until the timeout.
+A retained bright frame is diagnostic only, not success.
+Screenshot write failures also propagate.
+The production ISO gate uses the same checker before it creates a PNG.
+It does not save PPM data with a `.png` suffix.
+Pixel stability still does not prove desktop health; inspect the actual image.

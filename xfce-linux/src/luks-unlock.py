@@ -422,12 +422,10 @@ def run_qemu(monitor_sock: str, passphrase: str, serial_log: str):
 
 
 def run_wait_live(monitor_sock: str, screenshot_path: str):
-    """Wait for the live boot screen to become bright and stable.
+    """Wait for a bright, stable screenshot; fail if none arrives in time.
 
-    This ensures that when we capture the live-boot screenshot for CI/PR
-    diagnostics, the installer GUI (or at least a fully rendered desktop)
-    is actually loaded and visible, rather than just a black screen or
-    a transitional boot logo.
+    Pixel stability is a readiness heuristic, not proof of desktop health.
+    Screenshots still need inspection for rendering errors and product identity.
     """
     print(f"[luks-unlock] wait-live mode — watching monitor {monitor_sock}...", flush=True)
 
@@ -460,12 +458,9 @@ def run_wait_live(monitor_sock: str, screenshot_path: str):
                 stable_count = 0
             prev_hash = md5
 
-            # Keep a backup of the latest bright screenshot in case we time out
-            try:
-                import shutil
-                shutil.copy2(snap, screenshot_path)
-            except OSError:
-                pass
+            # Retain bright frames for diagnostics, even if stability times out.
+            import shutil
+            shutil.copy2(snap, screenshot_path)
 
             if stable_count >= STABLE_POLLS:
                 print(f"[luks-unlock] Live boot GUI stable (brightness={brightness:.2f}, {stable_count} identical polls)", flush=True)
@@ -478,9 +473,10 @@ def run_wait_live(monitor_sock: str, screenshot_path: str):
         time.sleep(POLL_INTERVAL)
 
     if prev_hash:
-        print("[luks-unlock] WARNING: wait-live timed out — screen never stabilized. Using last captured bright frame.", file=sys.stderr)
+        print("[luks-unlock] ERROR: wait-live timed out — screen never stabilized; retained frame is diagnostic only.", file=sys.stderr)
     else:
-        print("[luks-unlock] WARNING: wait-live timed out — screen never reached brightness threshold. No screenshot captured.", file=sys.stderr)
+        print("[luks-unlock] ERROR: wait-live timed out — screen never reached brightness threshold.", file=sys.stderr)
+    sys.exit(1)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
