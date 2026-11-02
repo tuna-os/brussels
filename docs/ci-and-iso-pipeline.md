@@ -60,6 +60,8 @@ They recover after they refresh the GHCR caches.
    stage installs flatpaks (`src/install-flatpaks.sh`) and configures the
    live env (`src/configure-live.sh`).
 2. Resolve the payload once to its immutable registry digest.
+   Use the canonical registry name plus digest, without a tag.
+   Skopeo rejects a reference that combines a tag and digest.
    Build the live root from that same digest.
    `scripts/embed-payload.sh` copies compressed layers to an OCI layout at
    `/usr/lib/tunaos/payload`. Its actual manifest/config digests populate

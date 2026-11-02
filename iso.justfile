@@ -72,10 +72,8 @@ iso-sd-boot target:
     set -euo pipefail
 
     PAYLOAD_REF="$(tr -d '[:space:]' < '{{target}}/payload_ref')"
-    DIGEST=$(skopeo inspect --override-os linux --override-arch amd64 \
-        "docker://${PAYLOAD_REF}" | jq -er '.Digest')
-    PINNED_IMAGE="${PAYLOAD_REF%@*}"
-    PINNED_IMAGE="${PINNED_IMAGE%:*}@${DIGEST}"
+    PINNED_IMAGE=$(skopeo inspect --override-os linux --override-arch amd64 \
+        "docker://${PAYLOAD_REF}" | jq -er '.Name + "@" + .Digest')
     # Both live root and install payload must come from the very same image.
     just debug={{debug}} installer_channel={{installer_channel}} container {{target}} "${PINNED_IMAGE}"
     mkdir -p {{output_dir}}
