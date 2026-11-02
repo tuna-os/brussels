@@ -21,8 +21,8 @@ elements/**  ──►  Build xfce-linux (Multi-Runner)  ──►  ghcr.io/tuna
 The plan, core, and parallel dependency chunks (steps 1-3) use the shared
 [tuna-os/bst-ci](https://github.com/tuna-os/bst-ci) reusable workflow. Each
 BuildStream desktop repository uses this workflow, with different image names,
-targets, and chunk counts. The local `build_final` job (step 4) publishes the
-OCI image and signs with a configured cosign key.
+targets, and chunk counts. The local `build_final` job (step 4) publishes a SHA
+candidate. Release channels need the approved key pair and a completed scan.
 The ISO uses GitHub OIDC with a Sigstore bundle.
 
 Free GitHub runners can't hold the whole GNOME+XFCE build, so the workflow
@@ -40,8 +40,10 @@ splits it:
    skips a chunk when GHCR already has its exact cache key.
 4. **build_final** — merges the CAS archives and builds the final target.
    It runs `just export` (squash + OCI labels + chunkify) and `just lint`.
-   It publishes channel/date/SHA tags on main or stable.
-   Explicit manual branch builds publish only the candidate's SHA tag.
+   It captures the registry digest with `podman push --digestfile`.
+   Every candidate must pass the scanner and SARIF upload.
+   Main and stable sign and verify that digest before they update channel tags.
+   Branch builds publish experimental candidates without signatures.
 
 BuildStream settings CI uses live in the checked-in `buildstream-ci.conf`.
 
@@ -135,12 +137,15 @@ skill. The `docs/ci-troubleshooting.md` file in tuna-os/tunaos shows the format.
   publishes `:latest`, `:nightly`, `:nightly-YYYYMMDD`, `:<sha>`; the ISO
   lands at R2 `xfce-linux/`.
 - **stable** is a release bookmark branch. A weekly schedule or manual dispatch
-  starts `promote-stable.yml`; set `force=true` for an override. The workflow
-  verifies the newest nightly build and ISO. It force-pushes that commit to
-  `stable` and starts the stable build. The build creates the `:stable` and
-  `:stable-YYYYMMDD` tags, plus an ISO under R2 `xfce-linux/stable/`. The stable
-  ISO embeds the `:stable` payload. The build-iso.yml workflow changes
-  `payload_ref` for each channel.
+  starts `promote-stable.yml`. The approved key pair is mandatory, with no
+  force bypass. The newest main build, ISO, plain and LUKS health runs must
+  match one commit. ISO, plain and LUKS runs record the
+  digest of the pinned payload, image revision and workflow commit as qualification artifacts.
+  All three must match that SHA image, not an older test payload.
+  The workflow verifies that SHA image's signature, advances
+  the stable branch and retags the **same digest**. It does not build the OS again.
+  It dispatches only the stable ISO with that verified immutable payload.
+  The workflow verifies the stable digest, ISO checksum and OIDC bundle.
 - Update PRs from source trackers or Renovate target only main. Stable moves
   only through promotion.
 
@@ -205,14 +210,20 @@ weekly schedules and on manual dispatch.
 ## Rollback
 
 `rollback-stable.yml` runs only through manual dispatch and defaults `dry_run`
-to true. It reverses a promotion. First, it verifies that the target `:<sha>`
-image exists. Then, `skopeo copy --preserve-digests` sets `:stable` and a dated
-`stable-rollback-*` tag.
+to true. It needs the approved key pair.
+The workflow resolves the SHA tag to an immutable registry digest and verifies its signature.
 
-The workflow force-pushes the stable branch to the same commit so the branch and
-tag cannot differ. It shares the concurrency group of the promotion workflow,
-so both cannot run at once. Dakota-pattern note: add a cosign verification step
-before the retag after cosign support lands.
+It needs ISO, plain and LUKS qualification artifacts for the same commit and digest.
+Missing artifacts and old-payload tests fail this gate.
+It also completes the `CRITICAL,HIGH` scan and SARIF upload.
+If a command fails, the workflow does not write release tags.
+The existing report-only findings policy does not qualify a vulnerable image.
+
+With `dry_run=false`, `skopeo copy --preserve-digests` sets `:stable` and its
+dated rollback tag from that exact digest. Then the workflow force-pushes the
+stable branch to the same commit. It shares the promotion concurrency group.
+The key pair and a policy for bootc signatures remain external prerequisites.
+See the [signature guide](signing.md).
 
 ### Serial log permissions in install E2E (#135)
 
@@ -360,6 +371,14 @@ The hosted runner for LUKS run 41461329227 lost its server connection.
 GitHub retained no logs or artifacts from that try.
 There is no guest result from that try.
 
+The unchanged frozen source and payload passed on the fresh-worker retry
+(try 2, job 125371824325), including shipped fisherman installation,
+passphrase entry and installed boot.
+Its [inspected installed image](https://raw.githubusercontent.com/tuna-os/xfce-linux/ci-screenshots/luks-e2e/41461329227/stable/final-boot.png)
+shows the complete desktop, matching the plain test's graphics repair.
+The prompt image is still a text console, not a branded Plymouth scene.
+These tests use the old pinned image, not the new Brussels source image.
+
 The pinned desktop executable contains a fallback path under its developer's
 `/var/home/james/dev/xfce-wayland/install` prefix.
 We did not add a compatibility symlink for that path.
@@ -388,3 +407,49 @@ It fetched and verified the archive.
 The smoke used an isolated cache and `--deps none --ignore-project-source-remotes`.
 It processed one leaf without errors in nine seconds.
 This checks source retrieval and graph integration, not a complete OS build.
+
+### Authoritative publication digest and trust gates
+
+Main run 41378878578 completed the OS build, export, lint and publish.
+It did **not** qualify security.
+Trivy read the local digest
+`sha256:132858d09339056d5006d6cd67da0fea21cd33133d49f9d9398636943ba483e2` and received `MANIFEST_UNKNOWN`.
+The registry resolved the SHA tag to
+`sha256:6409a488869c09e7a327483f710d9cbfe7f7da30b8bbf763a23f93ab5c9e3056`.
+The workflow ignored the scan failure and missing SARIF.
+It published the image without a signature because `SIGNING_SECRET` was absent.
+
+Publishers now capture the digest at the push destination.
+If the scanner or SARIF upload fails, the job fails.
+The configuration keeps `CRITICAL,HIGH` and report-only CVE results.
+Actual findings still block qualification for security, even if the build passes.
+
+The manual fallback no longer updates `latest`.
+It does not retry failed pushes.
+Release and rollback gates verify the approved key pair and the image's
+signature before they change mutable tags or branches.
+Stable promotion retags the nightly image after it verifies the digest.
+See the [signature guide](signing.md) for the native smoke and administrator prerequisites.
+
+Image build 41476620423 started from source
+`f28839d9567ad5c80589a83230be4666f7fdce64` after the original main run finished.
+This preserved work in the cache.
+That source predates these publisher/security gate repairs.
+A successful build alone does not qualify security or the new Brussels image.
+
+### Large ISO signatures and exact qualification
+
+Run 41474270502 built and booted a 6.56 GB ISO, then cosign exited 137.
+Cosign 3.0.6 reads the whole artifact into RAM when it signs or verifies a file.
+The official Python CLI from Sigstore streams the actual ISO hash.
+It signs a standard bundle with GitHub OIDC, not a checksum file.
+The verifier streams the ISO hash and uses cosign's supported digest input.
+
+It keeps the exact workflow identity, GitHub issuer and transparency checks.
+See [large ISO memory use](signing.md#large-iso-memory-use).
+
+The ISO producer records the actual immutable source in `qualification.json`.
+It keeps that source separate from the installed system's update channel.
+CI copies this record from `/var/iso-build` beside the ISO before it uploads evidence.
+Promotion and rollback compare all three records with the signed commit and digest.
+Missing records cannot authorize a release, nor can tests that use an older payload.

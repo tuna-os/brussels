@@ -64,6 +64,21 @@ Heavy builds should run in CI, not on a laptop.
   unsupported `--dest-force-compress-format` flag.
 - ISO signing uses a Sigstore `.sigstore.json` bundle (cosign 3+), not the
   deprecated detached `.sig`/`.cert` flags.
+  Cosign's file mode buffers the full ISO. Use the pinned official Python
+  Sigstore CLI to stream-sign and `scripts/verify-iso-signature.sh` to verify
+  the actual streamed hash. Keep identity, issuer and transparency checks.
+- OCI push consumers must use the destination digest from
+  `scripts/push-image.sh`, never local `podman inspect .Digest`.
+  Scanner/SARIF failures are hard failures, including SHA-only candidates.
+- Mutable releases require the approved matching `SIGNING_SECRET` and
+  `cosign.pub`, signature verification and the CRITICAL/HIGH scan.
+  Do not generate keys, bypass these gates or treat unsigned candidates as
+  security-qualified. Stable promotion retags a verified digest without an OS
+  rebuild. Installed bootc policy enforcement is a separate open prerequisite.
+  ISO, plain and LUKS qualification artifacts must bind that exact source
+  commit, image revision and registry digest. Old-payload smoke is not qualification.
+  Keep the existing report-only CVE behavior distinct from operational scanner
+  failures: actual findings remain security-qualification blockers.
 - Renovate handles Actions/containers; `.bst` refs are bumped by
   `track-bst-sources.yml` (`bst source track`). Junction bumps
   (freedesktop-sdk, gnome-build-meta) are review-required.

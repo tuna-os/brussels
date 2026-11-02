@@ -70,6 +70,7 @@ jobs:
           fi
 
       - name: Bind ISO to candidate image
+        id: payload
         env:
           PAYLOAD_IMAGE: ${{ inputs.payload_image }}
           IMAGE_BUILD_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -78,7 +79,8 @@ jobs:
           if [ -n "$IMAGE_BUILD_SHA" ]; then
             PAYLOAD_IMAGE="ghcr.io/tuna-os/xfce-linux:${IMAGE_BUILD_SHA}"
           fi
-          printf '%s\n' "${PAYLOAD_IMAGE:-ghcr.io/tuna-os/xfce-linux:${CHANNEL_TAG}}" > xfce-linux/payload_ref
+          echo "source=${PAYLOAD_IMAGE:-ghcr.io/tuna-os/xfce-linux:${CHANNEL_TAG}}" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "ghcr.io/tuna-os/xfce-linux:${CHANNEL_TAG}" > xfce-linux/payload_ref
 
       - name: Free disk space
         # Must run before Setup Just: tool-cache:true wipes the runner tool
@@ -96,21 +98,33 @@ jobs:
         run: sudo ln -sf "$(command -v just)" /usr/local/bin/just
 
       - name: Install dependencies
-        run: sudo apt-get update -qq && sudo apt-get install -y podman buildah rclone jq mtools xorriso skopeo squashfs-tools qemu-system-x86 ovmf socat imagemagick
+        run: sudo apt-get update -qq && sudo apt-get install -y podman buildah rclone jq mtools xorriso skopeo squashfs-tools qemu-system-x86 ovmf socat imagemagick python3-venv
 
       - name: Log in to GHCR
         run: echo "${{ env.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u ${{ github.actor }} --password-stdin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+
       - name: Build Live ISO
+        env:
+          PAYLOAD_SOURCE: ${{ steps.payload.outputs.source }}
         run: |
           df -h /
           sudo mkdir -p /var/iso-build
-          sudo "$(command -v just)" installer_channel=stable output_dir=/var/iso-build iso-sd-boot xfce-linux
+          sudo "$(command -v just)" installer_channel=stable output_dir=/var/iso-build \
+            payload_source_ref="$PAYLOAD_SOURCE" iso-sd-boot xfce-linux
           mkdir -p output
           sudo cp /var/iso-build/xfce-linux-live.iso output/
+          sudo cp /var/iso-build/qualification.json output/
           sudo chown -R "$USER:$(id -gn)" output/
+
+      - name: Upload payload qualification
+        uses: actions/upload-artifact@v7
+        with:
+          name: iso-qualification
+          path: output/qualification.json
+          if-no-files-found: error
 
       - name: Compute ISO name
         id: iso
@@ -159,8 +173,10 @@ jobs:
         run: |
           ISO="${{ steps.iso.outputs.path }}"
           DATED="${{ steps.iso.outputs.dated }}"
-          sha256sum "$ISO" | sed "s|${ISO}|${DATED}|" | tee "output/${DATED}-CHECKSUM"
-          sha256sum "$ISO" | sed "s|${ISO}|xfce-linux-live-latest.iso|" > "output/xfce-linux-live-latest.iso-CHECKSUM"
+          digest=$(sha256sum -- "$ISO")
+          digest=${digest%% *}
+          printf '%s  %s\n' "$digest" "$DATED" | tee "output/${DATED}-CHECKSUM"
+          printf '%s  %s\n' "$digest" xfce-linux-live-latest.iso > output/xfce-linux-live-latest.iso-CHECKSUM
           echo "path=output/${DATED}-CHECKSUM" >> "$GITHUB_OUTPUT"
           echo "name=${DATED}-CHECKSUM" >> "$GITHUB_OUTPUT"
 
@@ -168,12 +184,20 @@ jobs:
         if: ${{ inputs.skip_upload != true && github.event_name != 'pull_request' }}
         uses: sigstore/cosign-installer@v4.1.2
 
-      - name: Sign ISO (cosign keyless)
+      - name: Install bounded-memory Sigstore signer
+        if: ${{ inputs.skip_upload != true && github.event_name != 'pull_request' }}
+        run: |
+          /usr/bin/python3 -m venv "$RUNNER_TEMP/iso-sigstore"
+          "$RUNNER_TEMP/iso-sigstore/bin/python" -m pip install \
+            --disable-pip-version-check --no-cache-dir -r .github/requirements-sigstore.txt
+
+      - name: Sign ISO (streamed GitHub OIDC)
         id: sign
         if: ${{ inputs.skip_upload != true && github.event_name != 'pull_request' }}
         run: |
           ISO="${{ steps.iso.outputs.path }}"
-          cosign sign-blob --yes --bundle "${ISO}.sigstore.json" "$ISO"
+          "$RUNNER_TEMP/iso-sigstore/bin/python" -m sigstore sign \
+            --bundle "${ISO}.sigstore.json" "$ISO"
           echo "bundle_path=${ISO}.sigstore.json" >> "$GITHUB_OUTPUT"
 
       - name: Verify ISO signature bundle
@@ -181,10 +205,18 @@ jobs:
         env:
           EXPECTED_IDENTITY: ${{ github.server_url }}/${{ github.workflow_ref }}
         run: |
-          cosign verify-blob --bundle "${{ steps.sign.outputs.bundle_path }}" \
-            --certificate-identity "$EXPECTED_IDENTITY" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            "${{ steps.iso.outputs.path }}"
+          ISO="${{ steps.iso.outputs.path }}"
+          BUNDLE="${{ steps.sign.outputs.bundle_path }}"
+          bash scripts/verify-iso-signature.sh "$ISO" "$BUNDLE" "$EXPECTED_IDENTITY"
+          # Truncation is a real artifact change, not a fabricated digest.
+          truncated=$(mktemp)
+          trap 'rm -f "$truncated"' EXIT
+          dd if="$ISO" of="$truncated" bs=1M count=1 status=none
+          if bash scripts/verify-iso-signature.sh "$truncated" "$BUNDLE" "$EXPECTED_IDENTITY"; then
+            echo "::error::ISO signature verifier accepted a truncated artifact"
+            exit 1
+          fi
+          echo "Verified actual ISO bytes; rejected a truncated copy."
 
       - name: Upload ISO to Cloudflare R2
         if: ${{ inputs.skip_upload != true && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') }}

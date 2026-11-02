@@ -62,7 +62,16 @@ sudo bootc switch ghcr.io/tuna-os/xfce-linux:latest
 
 The release workflow publishes the first stable channel only after all checks
 pass. The checks cover the nightly image, matching live ISO, plain install, and
-LUKS install. After promotion, use the immutable image at:
+LUKS install.
+Release promotion also needs the approved key pair and exact image signature.
+It retags the nightly digest after verification and does not build the OS again.
+
+ISO, plain and LUKS evidence must identify that same commit and image digest.
+Tests that use an old payload do not qualify a newer release.
+The key pair and a policy for bootc signatures remain absent.
+These prerequisites block stable/security qualification.
+
+After promotion, select the stable channel:
 
 ```bash
 podman pull ghcr.io/tuna-os/xfce-linux:stable
@@ -77,18 +86,29 @@ ready. Thus, downstream download pages can safely use those stable names.
 
 ## Verifying Signatures
 
-**OCI images:** Image signature verification is not yet in effect. See [`docs/signing.md`](docs/signing.md) for the implementation plan.
+**OCI images:** SHA candidates have no signatures and do not qualify for security.
+Release channels need the approved key pair, verified digest and a completed scan.
+CI fails if the scanner or SARIF upload fails.
+A build pass does not qualify an image with vulnerabilities.
+Installed systems do not yet enforce signatures through bootc.
+See [`docs/signing.md`](docs/signing.md) for the exact administrator prerequisites.
 
 **Live ISO signatures:** each ISO has a Sigstore bundle (`.sigstore.json`).
 The bundle contains its signature, certificate and transparency proof.
 Use cosign 3 or newer:
 
 ```bash
-cosign verify-blob xfce-linux-live-<date>-<sha>.iso \
-  --bundle xfce-linux-live-<date>-<sha>.iso.sigstore.json \
-  --certificate-identity-regexp 'https://github.com/tuna-os/xfce-linux/\.github/workflows/build-iso\.yml@.*' \
+ISO='xfce-linux-live-<date>-<sha>.iso'
+digest=$(sha256sum -- "$ISO")
+cosign verify-blob "sha256:${digest%% *}" \
+  --bundle "${ISO}.sigstore.json" \
+  --certificate-identity 'https://github.com/tuna-os/xfce-linux/.github/workflows/build-iso.yml@refs/heads/stable' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
+
+This hashes the actual ISO as a stream.
+Cosign checks that digest against the bundle and does not load the ISO into RAM.
+For nightly or branch ISOs, use the exact ref from their workflow run instead of stable.
 
 ## Docs
 

@@ -2,6 +2,9 @@
 # Override with: just output_dir=/your/path iso-sd-boot xfce-linux
 output_dir := "output"
 
+# Immutable candidate source, separate from the installed system's update channel.
+payload_source_ref := ""
+
 # Set to 1 to enable SSH in the live session for debugging.
 # Example: just debug=1 output_dir=/tmp/out iso-sd-boot xfce-linux
 # Never use debug=1 for production/release ISOs.
@@ -33,6 +36,7 @@ build-bg target:
         debug={{debug}} \
         installer_channel={{installer_channel}} \
         output_dir={{output_dir}} \
+        payload_source_ref="{{payload_source_ref}}" \
         compression={{compression}} \
         iso-sd-boot {{target}} \
         > "${LOG}" 2>&1 &
@@ -71,14 +75,15 @@ iso-sd-boot target:
     #!/usr/bin/bash
     set -euo pipefail
 
+    mkdir -p "{{output_dir}}"
+    OUTPUT_DIR=$(realpath "{{output_dir}}")
     PAYLOAD_REF="$(tr -d '[:space:]' < '{{target}}/payload_ref')"
-    PINNED_IMAGE=$(skopeo inspect --override-os linux --override-arch amd64 \
-        "docker://${PAYLOAD_REF}" | jq -er '.Name + "@" + .Digest')
+    bash scripts/pin-qualified-payload.sh '{{target}}/payload_ref' \
+        "${OUTPUT_DIR}/qualification.json" "$(git rev-parse HEAD)" "{{payload_source_ref}}"
+    PINNED_IMAGE=$(jq -er .payload_image "${OUTPUT_DIR}/qualification.json")
     # Prepare composefs source before adding any live-only installer files.
     PREPARED_IMAGE=$(sudo bash scripts/prepare-payload.sh "${PINNED_IMAGE}" "{{target}}")
     just debug={{debug}} installer_channel={{installer_channel}} container {{target}} "${PREPARED_IMAGE}"
-    mkdir -p {{output_dir}}
-    OUTPUT_DIR=$(realpath "{{output_dir}}")
 
     if [[ $(id -u) -eq 0 ]]; then
         _ns()    { bash -c "$1"; }

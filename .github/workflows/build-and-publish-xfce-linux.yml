@@ -28,12 +28,14 @@ permissions:
 
 jobs:
   build:
+    if: github.ref != 'refs/heads/stable'
     # Always a GitHub-hosted runner -- no third-party runner escape hatch.
     runs-on: ubuntu-24.04
     timeout-minutes: 1440
     permissions:
       contents: read
       packages: write
+      security-events: write
 
     steps:
       - name: Checkout
@@ -125,30 +127,34 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push to GHCR
-        if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+      - name: Push unsigned experimental candidate
+        id: push
+        if: ${{ inputs.push_image }}
         run: |
-          DATE_TAG=$(date -u +%Y%m%d)
-          for tag in latest "$DATE_TAG" "${{ github.sha }}"; do
-            sudo podman tag "${IMAGE_NAME}:latest" "${IMAGE_REGISTRY}/${IMAGE_NAME}:${tag}"
-            for attempt in 1 2 3; do
-              sudo podman push "${IMAGE_REGISTRY}/${IMAGE_NAME}:${tag}" && break
-              echo "Push attempt ${attempt} failed, retrying…"; sleep 5
-            done
-          done
-          echo "Pushed ${IMAGE_REGISTRY}/${IMAGE_NAME}:{latest,${DATE_TAG},${{ github.sha }}}"
+          digest=$(sudo bash scripts/push-image.sh \
+            "localhost/${IMAGE_NAME}:latest" \
+            "${IMAGE_REGISTRY}/${IMAGE_NAME}:${{ github.sha }}")
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "::warning::SHA-only experimental candidate is unsigned, not security-qualified. Release channels use build-multirunner.yml."
 
-      - name: Verify published image
-        if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
-        run: |
-          sudo podman pull "${IMAGE_REGISTRY}/${IMAGE_NAME}:latest"
-          sudo podman inspect "${IMAGE_REGISTRY}/${IMAGE_NAME}:latest" \
-            --format '{{.RepoDigests}} labels={{.Labels}}' | head -5
-          echo "✅ Image verified at ${IMAGE_REGISTRY}/${IMAGE_NAME}:latest"
+      - name: Trivy image scan
+        if: ${{ steps.push.outcome == 'success' }}
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy scan results
+        if: ${{ always() && steps.push.outcome == 'success' }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
 
       - name: Build summary
         if: always()
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Target**: \`${BST_TARGET}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image**: \`${IMAGE_REGISTRY}/${IMAGE_NAME}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Unsigned candidate**: \`${IMAGE_REGISTRY}/${IMAGE_NAME}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY

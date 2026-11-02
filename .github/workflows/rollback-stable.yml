@@ -1,11 +1,10 @@
 name: Rollback :stable
 
-# One-button rollback when a promoted stable is bad (dakota pattern,
-# simplified — no cosign yet, see the signing issue). Dispatch-only and
-# dry_run by default: humans opt in to moving tags.
+# One-button rollback preserves the approved signed image digest.
+# Dispatch-only and dry_run by default: humans opt in to moving tags.
 #
-#   1. Verify ghcr.io/tuna-os/xfce-linux:<target_sha> exists.
-#   2. skopeo copy --preserve-digests it onto :stable (+ dated rollback tag).
+#   1. Validate the signing pair, target signature and vulnerability scan.
+#   2. skopeo copy --preserve-digests onto :stable (+ dated rollback tag).
 #   3. Force-push the stable branch to the target commit so the branch and
 #      the tag never diverge.
 #
@@ -29,7 +28,9 @@ on:
 
 permissions:
   contents: write
+  actions: read
   packages: write
+  security-events: write
 
 concurrency:
   group: promote-stable
@@ -43,39 +44,83 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify target image exists
-        run: |
-          echo "$GITHUB_TOKEN" | sudo podman login ghcr.io -u ${{ github.actor }} --password-stdin
-          sudo skopeo inspect "docker://ghcr.io/tuna-os/xfce-linux:${{ inputs.target_sha }}" --format 'target digest: {{.Digest}}'
-          sudo skopeo inspect "docker://ghcr.io/tuna-os/xfce-linux:stable" --format 'current stable digest: {{.Digest}}' || echo "no :stable yet"
-          git cat-file -e "${{ inputs.target_sha }}^{commit}" || { echo "::error::SHA not a commit in this repo"; exit 1; }
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.1.2
+
+      - name: Validate release signing material
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          COSIGN_PASSWORD: ${{ secrets.SIGNING_SECRET_PASSWORD }}
+        run: bash scripts/check-release-signing.sh cosign.pub
+
+      - name: Verify immutable target signature
+        id: candidate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::A full commit SHA is required"; exit 1; }
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends skopeo
+          echo "$GITHUB_TOKEN" | sudo skopeo login ghcr.io -u ${{ github.actor }} --password-stdin
+          git cat-file -e "${TARGET_SHA}^{commit}" || { echo "::error::SHA not a commit in this repo"; exit 1; }
+          digest=$(sudo skopeo inspect "docker://ghcr.io/tuna-os/xfce-linux:${TARGET_SHA}" --format '{{.Digest}}')
+          cosign verify --key cosign.pub "ghcr.io/tuna-os/xfce-linux@${digest}"
+          runs=()
+          for workflow in build-iso.yml test-plain-install.yml test-luks-install.yml; do
+            run=$(gh run list --workflow "$workflow" --commit "$TARGET_SHA" --status success \
+              --limit 20 --json databaseId --jq '.[0].databaseId // empty')
+            [ -n "$run" ] || { echo "::error::No successful $workflow for $TARGET_SHA"; exit 1; }
+            runs+=("$run")
+          done
+          bash scripts/verify-qualified-payload.sh "$TARGET_SHA" \
+            "ghcr.io/tuna-os/xfce-linux@${digest}" "${runs[@]}"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Trivy image scan
+        if: ${{ steps.candidate.outcome == 'success' }}
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ghcr.io/tuna-os/xfce-linux@${{ steps.candidate.outputs.digest }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy scan results
+        if: ${{ always() && steps.candidate.outcome == 'success' }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
 
       - name: Roll back image tags
-        if: ${{ !inputs.dry_run }}
+        if: ${{ success() && !inputs.dry_run }}
         run: |
           DATE_TAG=$(date -u +%Y%m%d-%H%M)
           sudo skopeo copy --preserve-digests \
-            "docker://ghcr.io/tuna-os/xfce-linux:${{ inputs.target_sha }}" \
+            "docker://ghcr.io/tuna-os/xfce-linux@${{ steps.candidate.outputs.digest }}" \
             "docker://ghcr.io/tuna-os/xfce-linux:stable"
           sudo skopeo copy --preserve-digests \
-            "docker://ghcr.io/tuna-os/xfce-linux:${{ inputs.target_sha }}" \
+            "docker://ghcr.io/tuna-os/xfce-linux@${{ steps.candidate.outputs.digest }}" \
             "docker://ghcr.io/tuna-os/xfce-linux:stable-rollback-${DATE_TAG}"
 
       - name: Move stable branch
-        if: ${{ !inputs.dry_run }}
+        if: ${{ success() && !inputs.dry_run }}
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git push origin "${{ inputs.target_sha }}:refs/heads/stable" --force
+          git push origin "${TARGET_SHA}:refs/heads/stable" --force
 
       - name: Summary
         if: always()
+        env:
+          REASON: ${{ inputs.reason }}
         run: |
           {
             echo "## Rollback ${{ inputs.dry_run && '(DRY RUN)' || '' }}"
             echo "- target: \`${{ inputs.target_sha }}\`"
-            echo "- reason: ${{ inputs.reason }}"
+            echo "- reason: $REASON"
             echo "- actor: ${{ github.actor }}"
           } >> "$GITHUB_STEP_SUMMARY"

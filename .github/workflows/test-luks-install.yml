@@ -51,12 +51,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Select candidate payload
-        if: inputs.payload_image != ''
-        env:
-          PAYLOAD_IMAGE: ${{ inputs.payload_image }}
-        run: printf '%s\n' "$PAYLOAD_IMAGE" > "$TARGET/payload_ref"
-
       - name: Ensure screenshots branch exists
         continue-on-error: true
         env:
@@ -103,8 +97,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+
       - name: Build debug ISO
         id: build
+        env:
+          PAYLOAD_SOURCE: ${{ inputs.payload_image }}
         run: |
           START=$(date +%s)
           sudo mkdir -p /var/iso-build
@@ -112,10 +109,12 @@ jobs:
           # debug=1 enables SSH in the live session for the install step below.
           sudo "$(command -v just)" \
             debug=1 \
+            payload_source_ref="$PAYLOAD_SOURCE" \
             installer_channel=${{ matrix.installer_channel }} \
             output_dir=/var/iso-build \
             iso-sd-boot "$TARGET"
           sudo cp "/var/iso-build/${TARGET}-live.iso" "output/${TARGET}-live.iso"
+          sudo cp /var/iso-build/qualification.json output/
           sudo chown -R "$USER:$(id -gn)" output/
           # sudo keeps XDG_RUNTIME_DIR, so the root `just` above created its
           # temp dir at /run/user/<uid>/just as root. The unprivileged `just`
@@ -123,6 +122,13 @@ jobs:
           sudo rm -rf "/run/user/$(id -u)/just"
           echo "duration=$(( $(date +%s) - START ))" >> "$GITHUB_OUTPUT"
           echo "iso_size=$(stat -c%s output/${TARGET}-live.iso 2>/dev/null || echo 0)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload payload qualification
+        uses: actions/upload-artifact@v7
+        with:
+          name: luks-qualification-${{ matrix.installer_channel }}
+          path: output/qualification.json
+          if-no-files-found: error
 
       - name: Run LUKS end-to-end test
         id: luks_test
