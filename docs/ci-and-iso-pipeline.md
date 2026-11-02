@@ -60,7 +60,7 @@ They recover after they refresh the GHCR caches.
    stage installs flatpaks (`src/install-flatpaks.sh`) and configures the
    live env (`src/configure-live.sh`).
 2. Resolve the payload once to its immutable registry digest.
-   Use the canonical registry name plus digest, without a tag.
+   Combine the canonical name from the registry with its digest. Do not include a tag.
    Skopeo rejects a reference that combines a tag and digest.
    Build the live root from that same digest.
    `scripts/embed-payload.sh` copies compressed layers to an OCI layout at
@@ -223,6 +223,7 @@ failure. This fix does not resolve all guest boot failures.
 
 | Symptom | Cause | Fix / invariant |
 | --- | --- | --- |
+| ISO assembly in PR run 41392561078 fails with `unknown flag: --dest-force-compress-format` | Ubuntu 24.04 supplies Skopeo 1.13.3, which lacks that newer flag | Use supported `--dest-compress-format gzip` and exercise `/usr/bin/skopeo` 1.13.3, not the newer Homebrew binary. |
 | ISO 41333027065 built successfully, but cosign failed with `create bundle file: open : no such file or directory` | cosign 3 ignores deprecated detached signature/certificate output flags and requires a bundle path | Produce and publish `.sigstore.json`; boot-gate before signing or upload. |
 | PR 264 plain and LUKS live boots reached the ready marker and GUI, then fisherman refused installation | Old ISO producer embedded a VFS graph but did not provide the required `media-input.json` + read-only OCI source | Embed one immutable OCI layout and bind the generated contract to its actual platform manifest; empty recipe image selects the verified media source. |
 
@@ -230,6 +231,8 @@ A local smoke copied the real image
 `sha256:84594ac69abd7c8ac953d4588d7e92a078bef8d36991e8ade7dcd8a558d3d7da`.
 It verified every embedded blob's size and SHA256 (3,318,107,811 bytes).
 This verifies media assembly, not guest boot or installation.
+The corrected producer also passed a full copy with `/usr/bin/skopeo` 1.13.3.
+That smoke verified every blob's size and hash, and confirmed gzip for all layers.
 
 The same generated media passed fisherman's actual strict
 `PreflightBoundOCIMediaInput` at revision

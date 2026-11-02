@@ -9,7 +9,7 @@ layout="$root/usr/lib/tunaos/payload"
 mkdir -p "$layout" "$root/etc/bootc-installer"
 # Store compressed registry layers directly, not a second expanded VFS graph.
 skopeo copy --override-os linux --override-arch amd64 \
-    --dest-compress-format gzip --dest-force-compress-format \
+    --dest-compress-format gzip \
     "docker://$source_image" "oci:$layout:payload"
 manifest_digest=$(jq -er '.manifests | select(length == 1) | .[0].digest' "$layout/index.json")
 manifest="$layout/blobs/${manifest_digest/:/\/}"
