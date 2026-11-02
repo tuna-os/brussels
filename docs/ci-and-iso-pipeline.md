@@ -229,6 +229,7 @@ failure. This fix does not resolve all guest boot failures.
 
 | Symptom | Cause | Fix / invariant |
 | --- | --- | --- |
+| Changed-element run 41445803428 fails in `libbluray` fetch with a Dulwich `ValueError` | VideoLAN's Git endpoint returns an Anubis HTML challenge, not Git references | Use the same 1.5.0 release from VideoLAN's official download server, pinned by SHA256. The archive includes `contrib/libudfread`, so no separate Git module is needed. |
 | ISO assembly in PR run 41392561078 fails with `unknown flag: --dest-force-compress-format` | Ubuntu 24.04 supplies Skopeo 1.13.3, which lacks that newer flag | Use supported `--dest-compress-format gzip` and exercise `/usr/bin/skopeo` 1.13.3, not the newer Homebrew binary. |
 | ISO 41333027065 built successfully, but cosign failed with `create bundle file: open : no such file or directory` | cosign 3 ignores deprecated detached signature/certificate output flags and requires a bundle path | Produce and publish `.sigstore.json`; boot-gate before signing or upload. |
 | PR 264 plain and LUKS live boots reached the ready marker and GUI, then fisherman refused installation | Old ISO producer embedded a VFS graph but did not provide the required `media-input.json` + read-only OCI source | Embed one immutable OCI layout and bind the generated contract to its actual platform manifest; empty recipe image selects the verified media source. |
@@ -317,3 +318,18 @@ Screenshot write failures also propagate.
 The production ISO gate uses the same checker before it creates a PNG.
 It does not save PPM data with a `.png` suffix.
 Pixel stability still does not prove desktop health; inspect the actual image.
+
+### Authoritative libbluray source transport
+
+[VideoLAN's project page](https://www.videolan.org/developers/libbluray.html)
+links its [official 1.5.0 release archive](https://download.videolan.org/pub/videolan/libbluray/1.5.0/libbluray-1.5.0.tar.xz).
+The SHA256 is `f676408e91a5d321abf8b8d4dfdae36205c297dab5c54c3ec519639025f474a2`.
+This keeps version 1.5.0 and its bundled libudfread source.
+It does not invent another mirror or hide a fetch exception.
+
+The GNOME patch queue replaces the two Git sources with that archive.
+The pinned builder ran a source fetch with this patch.
+It fetched and verified the archive.
+The smoke used an isolated cache and `--deps none --ignore-project-source-remotes`.
+It processed one leaf without errors in nine seconds.
+This checks source retrieval and graph integration, not a complete OS build.
