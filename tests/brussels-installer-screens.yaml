@@ -1,0 +1,11 @@
+# Real shipped GTK UI pages, not proof of GUI-driven installation completion.
+# Stop before identity credentials; the backend install is qualified separately.
+screens:
+  - id: welcome
+    title: Welcome
+    required: true
+    keywords: ["welcome to", "get started"]
+  - id: disk
+    title: Destination
+    required: true
+    keywords: ["where should", "be installed", "available disks", "destination"]

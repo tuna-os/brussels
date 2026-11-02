@@ -15,6 +15,11 @@ on:
   # change can affect it (round-robin with the plain test; see test.yml).
   workflow_call:
   workflow_dispatch:
+    inputs:
+      payload_image:
+        description: 'Exact candidate image (empty uses the checked-in payload_ref)'
+        type: string
+        default: ''
   schedule:
     # Weekly on Monday 04:00 UTC
     - cron: '0 4 * * 1'
@@ -82,8 +87,9 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
-            podman buildah skopeo mtools xorriso squashfs-tools \
-            qemu-system-x86 qemu-utils ovmf socat sshpass imagemagick -qq
+            podman buildah skopeo jq mtools xorriso squashfs-tools \
+            qemu-system-x86 qemu-utils ovmf socat sshpass imagemagick \
+            tesseract-ocr tesseract-ocr-eng python3-pil python3-yaml librsvg2-bin -qq
 
       - name: Log in to GHCR
         run: |
@@ -92,8 +98,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+
       - name: Build debug ISO
         id: build
+        env:
+          PAYLOAD_SOURCE: ${{ inputs.payload_image }}
         run: |
           START=$(date +%s)
           sudo mkdir -p /var/iso-build
@@ -101,10 +110,12 @@ jobs:
           # debug=1 enables SSH in the live session for the install step below.
           sudo "$(command -v just)" \
             debug=1 \
+            payload_source_ref="$PAYLOAD_SOURCE" \
             installer_channel=${{ matrix.installer_channel }} \
             output_dir=/var/iso-build \
             iso-sd-boot "$TARGET"
           sudo cp "/var/iso-build/${TARGET}-live.iso" "output/${TARGET}-live.iso"
+          sudo cp /var/iso-build/qualification.json output/
           sudo chown -R "$USER:$(id -gn)" output/
           # sudo keeps XDG_RUNTIME_DIR, so the root `just` above created its
           # temp dir at /run/user/<uid>/just as root. The unprivileged `just`
@@ -113,13 +124,37 @@ jobs:
           echo "duration=$(( $(date +%s) - START ))" >> "$GITHUB_OUTPUT"
           echo "iso_size=$(stat -c%s output/${TARGET}-live.iso 2>/dev/null || echo 0)" >> "$GITHUB_OUTPUT"
 
+      - name: Upload payload qualification
+        uses: actions/upload-artifact@v7
+        with:
+          name: luks-qualification-${{ matrix.installer_channel }}
+          path: output/qualification.json
+          if-no-files-found: error
+
       - name: Run LUKS end-to-end test
         id: luks_test
+        env:
+          # Pull requests must pass the same strict branding/OCR contract as
+          # manually dispatched runs before their LUKS images are qualified.
+          BRUSSELS_VISUAL_QUALIFY: '1'
         run: |
           START=$(date +%s)
           just output_dir=output luks-test-qemu "$TARGET" ${{ matrix.installer_channel }}
           echo "duration=$(( $(date +%s) - START ))" >> "$GITHUB_OUTPUT"
         continue-on-error: true
+
+      - name: Retain native visual evidence
+        if: ${{ always() && steps.luks_test.outcome != 'skipped' }}
+        run: sudo chown -R "$USER:$(id -gn)" output/brussels-visual
+
+      - name: Upload native visual evidence
+        if: ${{ always() && steps.luks_test.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: brussels-visual-${{ matrix.installer_channel }}
+          path: output/brussels-visual/
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Convert and publish screenshots
         if: always()

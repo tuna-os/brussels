@@ -15,6 +15,9 @@ build-depends:
   - filename: oci/layers/xfce-linux.bst
     config:
       location: /layer
+  - filename: oci/os-release.bst
+    config:
+      location: /identity
 
 environment:
   LD_PRELOAD: /usr/libexec/fakecap/fakecap.so
@@ -25,6 +28,9 @@ variables:
 
 config:
   commands:
+    - |
+      # Use the repository's stable product identity and codename.
+      install -Dm644 /identity/usr/lib/os-release /layer/usr/lib/os-release
     - mkdir /fakecap
     - |
       prepare-image.sh \
@@ -85,13 +91,13 @@ config:
         parent:
           image: /parent
         layer: /layer
-        comment: "Import XFCE Linux layer"
+        comment: "Import Brussels layer"
         config:
           Labels:
             'com.github.containers.toolbox': 'true'
-            'org.opencontainers.image.title': 'XFCE Linux'
-            'org.opencontainers.image.description': 'A Wayland-native XFCE desktop image with xfwl4 compositor'
-            'org.opencontainers.image.vendor': 'XFCE Linux Project'
+            'org.opencontainers.image.title': 'Brussels'
+            'org.opencontainers.image.description': 'Brussels by TunaOS: experimental Xfce Wayland desktop with xfwl4'
+            'org.opencontainers.image.vendor': 'TunaOS'
             'org.opencontainers.image.licenses': 'GPL-3.0'
             'org.opencontainers.image.url': 'https://github.com/tuna-os/xfce-linux'
             'org.opencontainers.image.source': 'https://github.com/tuna-os/xfce-linux'

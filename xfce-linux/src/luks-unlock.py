@@ -2,22 +2,20 @@
 """
 Automate LUKS passphrase entry for a VM booting with Plymouth.
 
-Plymouth renders the passphrase prompt on the EFI framebuffer (not the serial
-console), so we cannot detect it via serial output.  Instead we detect the
-Plymouth prompt by analysing QEMU screendumps (PPM files):
+The native Brussels adapter calls run_qemu with an active-session observer.
+The actual prompt must be readable before entry. After entry, framebuffer
+capture stays disabled until that observer admits the real graphical user
+session on the new installed boot. Brightness is never unlock evidence.
 
-  - Plymouth passphrase prompt is a static, nearly all-black screen.
-  - We wait for the screendump MD5 hash to stabilise (stop changing) after
-    the framebuffer has first shown any non-zero content (OVMF/boot rendered).
-  - Then inject keystrokes via virsh send-key (libvirt) or QEMU HMP sendkey.
+The standalone libvirt helper is separate from Brussels visual qualification.
 
 Usage:
   libvirt mode:   luks-unlock.py libvirt   <vm-name> <passphrase> <mac-address>
-  qemu mode:      luks-unlock.py qemu      <monitor-sock> <passphrase> <serial-log>
   wait-live mode: luks-unlock.py wait-live <monitor-sock> <screenshot-path>
+  wait-boot mode: luks-unlock.py wait-boot <monitor-sock> <screenshot-path> <serial-log>
 
 Exit codes:
-  0 — passphrase sent and boot succeeded (display re-stabilised after unlock)
+  0 — requested boot/GUI check completed successfully
   1 — error (timed out, passphrase prompt never appeared, etc.)
   2 — passphrase sent but boot resulted in emergency shell (issue #270 reproduced)
 """
@@ -137,6 +135,8 @@ def qemu_send_passphrase(sock: str, passphrase: str):
     key_map["-"] = "minus"
     key_map["_"] = "shift-minus"
     key_map[" "] = "spc"
+    if any(character not in key_map for character in passphrase):
+        raise ValueError("Unsupported passphrase key; nothing was entered")
 
     def _sendkey(key: str):
         subprocess.run(
@@ -144,14 +144,11 @@ def qemu_send_passphrase(sock: str, passphrase: str):
             input=f"sendkey {key}\n".encode(),
             capture_output=True,
             timeout=5,
+            check=True,
         )
 
     for ch in passphrase:
-        key = key_map.get(ch)
-        if key is None:
-            print(f"[luks-unlock] WARNING: no key mapping for {ch!r}", file=sys.stderr)
-            continue
-        _sendkey(key)
+        _sendkey(key_map[ch])
         time.sleep(0.1)
     _sendkey("ret")
 
@@ -232,202 +229,53 @@ def run_libvirt(vm: str, passphrase: str, mac: str):
     sys.exit(2)
 
 
-def run_qemu(monitor_sock: str, passphrase: str, serial_log: str):
+def run_qemu(monitor_sock: str, passphrase: str, serial_log: str, *, safe_session=None):
+    """No post-secret capture until the native adapter proves a real user session."""
+    import shutil
+    from pathlib import Path
+
+    if not callable(safe_session):
+        raise RuntimeError("Use the native visual adapter with active-session admission")
     snap = "/tmp/luks-unlock-snap.ppm"
-
-    # Plymouth detection strategy
-    # ----------------------------
-    # QEMU with -display none renders very dim (brightness 0–5 for all phases).
-    # We cannot distinguish OVMF from Plymouth by absolute brightness, so we use
-    # two criteria instead:
-    #
-    #   1. had_content: at least one poll returned brightness > 0.5, meaning the
-    #      VM has started rendering something (rules out the all-zeros framebuffer
-    #      right after QEMU starts).
-    #
-    #   2. hash stability: the screendump MD5 has not changed for STABLE_POLLS
-    #      consecutive polls.  Plymouth passphrase prompt is a static screen
-    #      (no animation) so it stabilises quickly; OVMF and early boot are
-    #      actively changing.
-    CONTENT_THRESHOLD = 0.5   # any non-zero rendering
-    STABLE_POLLS      = 2     # consecutive identical-hash polls → Plymouth waiting
-                              # (≥ 6 s at POLL_INTERVAL=3)
-
-    print(f"[luks-unlock] qemu mode — watching monitor {monitor_sock}...", flush=True)
+    Path("/tmp/luks-screenshot-final.ppm").unlink(missing_ok=True)
     deadline = time.time() + PROMPT_DEADLINE
-
-    had_content = False
-    stable_count = 0
-    prev_hash = ""
-
     while time.time() < deadline:
-        # Primary path: detect Plymouth passphrase prompt via serial log.
-        # With console=tty0 console=ttyS0 in the BLS entry, Plymouth writes
-        # the prompt to serial.  Input still comes from tty0, so sendkey works.
-        serial_result = qemu_check_serial(serial_log)
-        if serial_result == "plymouth":
-            print("[luks-unlock] Plymouth passphrase prompt detected via serial", flush=True)
-            brightness, md5 = qemu_screendump(monitor_sock, snap)
-            try:
-                import shutil
+        if qemu_check_serial(serial_log) == "emergency":
+            raise RuntimeError("Emergency shell before LUKS entry")
+        brightness, _ = qemu_screendump(monitor_sock, snap)
+        if brightness >= 0:
+            text = subprocess.run(
+                ["tesseract", snap, "stdout", "--psm", "11"],
+                check=True, capture_output=True, text=True,
+            ).stdout.lower()
+            if "passphrase" in text or "password" in text:
+                # This is the final pre-secret frame. No recording service runs.
                 shutil.copy2(snap, "/tmp/luks-screenshot-plymouth.ppm")
-            except OSError:
-                pass
-            print(f"[luks-unlock] Waiting {PLYMOUTH_WAIT}s for Plymouth to settle...", flush=True)
-            time.sleep(PLYMOUTH_WAIT)
-            print("[luks-unlock] Sending passphrase via QEMU monitor sendkey...", flush=True)
-            qemu_send_passphrase(monitor_sock, passphrase)
-            print("[luks-unlock] Passphrase sent — watching for boot...", flush=True)
-            break
-
-        brightness, md5 = qemu_screendump(monitor_sock, snap)
-        print(f"[luks-unlock] screendump brightness={brightness:.2f} hash={md5[:8]}", flush=True)
-
-        if brightness < 0:
-            # Failed to read/parse screendump — socket not ready yet
-            stable_count = 0
-            time.sleep(POLL_INTERVAL)
-            continue
-
-        if not had_content and brightness > CONTENT_THRESHOLD:
-            had_content = True
-            print(f"[luks-unlock] VM is rendering (brightness {brightness:.2f})", flush=True)
-
-        # Track hash stability only after the framebuffer has any content
-        if had_content:
-            if md5 == prev_hash:
-                stable_count += 1
-            else:
-                stable_count = 0
-            prev_hash = md5
-
-        # Fallback: detect Plymouth via framebuffer stability (no serial console)
-        if had_content and stable_count >= STABLE_POLLS:
-            print(
-                f"[luks-unlock] Plymouth prompt stable"
-                f" (brightness={brightness:.2f}, {stable_count} identical polls)",
-                flush=True,
-            )
-            # Save a copy of the Plymouth screendump for CI diagnostics
-            try:
-                import shutil
-                shutil.copy2(snap, "/tmp/luks-screenshot-plymouth.ppm")
-            except OSError:
-                pass
-            print(f"[luks-unlock] Waiting {PLYMOUTH_WAIT}s for Plymouth to settle...", flush=True)
-            time.sleep(PLYMOUTH_WAIT)
-            print("[luks-unlock] Sending passphrase via QEMU monitor sendkey...", flush=True)
-            qemu_send_passphrase(monitor_sock, passphrase)
-            print("[luks-unlock] Passphrase sent — watching for boot...", flush=True)
-            break
-
+                break
         time.sleep(POLL_INTERVAL)
     else:
-        print("[luks-unlock] ERROR: Plymouth takeover never detected", file=sys.stderr)
-        sys.exit(1)
+        raise RuntimeError("No actual readable LUKS prompt before the deadline")
 
-    # After passphrase: watch for the screen to change from Plymouth (passphrase
-    # accepted → Plymouth clears → boot continues) and check serial for emergency
-    # shell (still useful for catching issue #270 even without ttyS0).
+    qemu_send_passphrase(monitor_sock, passphrase)
+    # Capture is disabled, including failure/cleanup screenshots, until admission.
     deadline = time.time() + BOOT_DEADLINE
-    passphrase_hash = prev_hash  # Plymouth hash at time of passphrase send
-    screen_changed = False
-    gnome_stable_count = 0
-
     while time.time() < deadline:
         result = qemu_check_serial(serial_log)
         if result == "emergency":
-            print("[luks-unlock] RESULT: emergency shell — issue #270 reproduced", flush=True)
-            sys.exit(2)
-
-        brightness, md5 = qemu_screendump(monitor_sock, snap)
-        print(f"[luks-unlock] post-passphrase brightness={brightness:.2f} hash={md5[:8]}",
-              flush=True)
-
-        if md5 != passphrase_hash and not screen_changed:
-            screen_changed = True
-            print(
-                "[luks-unlock] Screen changed after passphrase"
-                " — LUKS accepted, boot proceeding",
-                flush=True,
-            )
-
-        # Primary success path: serial log confirms gnome-initial-setup or GDM.
-        # gnome-initial-setup fires after GDM — screenshot taken immediately.
-        # If only GDM is seen, wait 30s as a fallback in case g-i-s is slow.
-        if result == "gnome-initial-setup":
-            print("[luks-unlock] gnome-initial-setup started (serial confirmed) — taking screenshot", flush=True)
-            brightness, md5 = qemu_screendump(monitor_sock, snap)
-            print(f"[luks-unlock] RESULT: boot succeeded (g-i-s confirmed via serial, brightness={brightness:.2f})", flush=True)
-        elif result == "gdm":
-            print(
-                "[luks-unlock] GDM started — waiting 30s for gnome-initial-setup...",
-                flush=True,
-            )
-            time.sleep(30)
-            brightness, md5 = qemu_screendump(monitor_sock, snap)
-            print(
-                f"[luks-unlock] RESULT: boot succeeded"
-                f" (GDM confirmed via serial, brightness={brightness:.2f})",
-                flush=True,
-            )
-        if result in ("gnome-initial-setup", "gdm"):
-            try:
-                import shutil
-                shutil.copy2(snap, "/tmp/luks-screenshot-final.ppm")
-            except OSError:
-                pass
-            sys.exit(0)
-
-        # Fallback: no serial console (console=ttyS0 absent).  Use framebuffer
-        # brightness to distinguish GDM (~2.4) from emergency shell (~1.0).
-        # Only trigger once the screen has re-stabilised after the initial
-        # post-passphrase animation.  GDM re-renders continuously (cursor
-        # blink, animations), so we cannot require many consecutive identical
-        # frames — 1 stable poll is sufficient to confirm the screen settled.
-        GNOME_THRESHOLD    = 1.8
-        GNOME_STABLE_POLLS = 1   # 1 stable poll is enough; GDM keeps rendering
-        if md5 == prev_hash:
-            gnome_stable_count += 1
-        else:
-            gnome_stable_count = 0
-
-        if screen_changed and gnome_stable_count >= GNOME_STABLE_POLLS:
-            if brightness > GNOME_THRESHOLD:
-                print(
-                    f"[luks-unlock] RESULT: boot succeeded"
-                    f" (framebuffer stable {gnome_stable_count} polls,"
-                    f" brightness={brightness:.2f})",
-                    flush=True,
-                )
-            else:
-                print(
-                    f"[luks-unlock] RESULT: emergency shell suspected"
-                    f" (framebuffer stable but dark, brightness={brightness:.2f})",
-                    flush=True,
-                )
-            try:
-                import shutil
-                shutil.copy2(snap, "/tmp/luks-screenshot-final.ppm")
-            except OSError:
-                pass
-            sys.exit(0 if brightness > GNOME_THRESHOLD else 2)
-
-        prev_hash = md5
-        time.sleep(5)
-
-    print("[luks-unlock] WARNING: passphrase sent but boot did not complete within timeout",
-          file=sys.stderr)
-    sys.exit(2)
+            raise RuntimeError("Emergency shell after LUKS entry; capture remains disabled")
+        if result in ("gdm", "gnome-initial-setup"):
+            # A service marker permits only an observer launch, NOT a screenshot.
+            safe_session()
+            return
+        time.sleep(POLL_INTERVAL)
+    raise RuntimeError("No graphical session after LUKS entry; capture remains disabled")
 
 
 def run_wait_live(monitor_sock: str, screenshot_path: str):
-    """Wait for the live boot screen to become bright and stable.
+    """Wait for a bright, stable screenshot; fail if none arrives in time.
 
-    This ensures that when we capture the live-boot screenshot for CI/PR
-    diagnostics, the installer GUI (or at least a fully rendered desktop)
-    is actually loaded and visible, rather than just a black screen or
-    a transitional boot logo.
+    Pixel stability is a readiness heuristic, not proof of desktop health.
+    Screenshots still need inspection for rendering errors and product identity.
     """
     print(f"[luks-unlock] wait-live mode — watching monitor {monitor_sock}...", flush=True)
 
@@ -460,12 +308,9 @@ def run_wait_live(monitor_sock: str, screenshot_path: str):
                 stable_count = 0
             prev_hash = md5
 
-            # Keep a backup of the latest bright screenshot in case we time out
-            try:
-                import shutil
-                shutil.copy2(snap, screenshot_path)
-            except OSError:
-                pass
+            # Retain bright frames for diagnostics, even if stability times out.
+            import shutil
+            shutil.copy2(snap, screenshot_path)
 
             if stable_count >= STABLE_POLLS:
                 print(f"[luks-unlock] Live boot GUI stable (brightness={brightness:.2f}, {stable_count} identical polls)", flush=True)
@@ -478,9 +323,30 @@ def run_wait_live(monitor_sock: str, screenshot_path: str):
         time.sleep(POLL_INTERVAL)
 
     if prev_hash:
-        print("[luks-unlock] WARNING: wait-live timed out — screen never stabilized. Using last captured bright frame.", file=sys.stderr)
+        print("[luks-unlock] ERROR: wait-live timed out — screen never stabilized; retained frame is diagnostic only.", file=sys.stderr)
     else:
-        print("[luks-unlock] WARNING: wait-live timed out — screen never reached brightness threshold. No screenshot captured.", file=sys.stderr)
+        print("[luks-unlock] ERROR: wait-live timed out — screen never reached brightness threshold.", file=sys.stderr)
+    sys.exit(1)
+
+
+def run_wait_boot(monitor_sock: str, screenshot_path: str, serial_log: str):
+    """Require an ANSI-normalized display-manager marker and a stable GUI."""
+    deadline = time.time() + BOOT_DEADLINE
+    print(f"[luks-unlock] Waiting for installed boot via {serial_log}...", flush=True)
+    while time.time() < deadline:
+        state = qemu_check_serial(serial_log)
+        if state == "emergency":
+            print("[luks-unlock] ERROR: installed system entered emergency mode", file=sys.stderr)
+            sys.exit(1)
+        if state in ("gdm", "gnome-initial-setup"):
+            print(f"[luks-unlock] Boot marker {state!r}; requiring a stable GUI...", flush=True)
+            run_wait_live(monitor_sock, screenshot_path)
+            print("[luks-unlock] Installed system booted successfully", flush=True)
+            return
+        time.sleep(5)
+    print(f"[luks-unlock] ERROR: no installed boot marker after {BOOT_DEADLINE}s; see {serial_log}",
+          file=sys.stderr)
+    sys.exit(1)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -498,20 +364,20 @@ def main():
             sys.exit(1)
         run_libvirt(sys.argv[2], sys.argv[3], sys.argv[4])
 
-    elif mode == "qemu":
-        if len(sys.argv) < 5:
-            print("Usage: luks-unlock.py qemu <monitor-sock> <passphrase> <serial-log>", file=sys.stderr)
-            sys.exit(1)
-        run_qemu(sys.argv[2], sys.argv[3], sys.argv[4])
-
     elif mode == "wait-live":
         if len(sys.argv) < 4:
             print("Usage: luks-unlock.py wait-live <monitor-sock> <screenshot-path>", file=sys.stderr)
             sys.exit(1)
         run_wait_live(sys.argv[2], sys.argv[3])
 
+    elif mode == "wait-boot":
+        if len(sys.argv) < 5:
+            print("Usage: luks-unlock.py wait-boot <monitor-sock> <screenshot-path> <serial-log>", file=sys.stderr)
+            sys.exit(1)
+        run_wait_boot(sys.argv[2], sys.argv[3], sys.argv[4])
+
     else:
-        print(f"Unknown mode: {mode!r}. Use 'libvirt', 'qemu', or 'wait-live'.", file=sys.stderr)
+        print(f"Unknown mode: {mode!r}. Use 'libvirt', 'wait-live', or 'wait-boot'.", file=sys.stderr)
         sys.exit(1)
 
 

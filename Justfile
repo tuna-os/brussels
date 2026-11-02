@@ -1,6 +1,7 @@
 # ISO/live/e2e recipes live in iso.justfile (kept separate for readability)
 import "iso.justfile"
 import "just/buildstream.just"
+import "just/mkosi-ddi.just"
 import "just/disk-image.just"
 import "just/vm.just"
 

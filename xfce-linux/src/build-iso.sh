@@ -74,7 +74,7 @@ default xfce-linux-live.conf
 EOF
 
 cat > "${ESP_STAGING}/loader/entries/xfce-linux-live.conf" << EOF
-title   XFCE Linux Live
+title   Brussels Live (TunaOS)
 linux   /images/pxeboot/vmlinuz
 initrd  /images/pxeboot/initrd.img
 options root=live:CDLABEL=${LABEL} rd.live.image rd.live.overlay.overlayfs=1 enforcing=0 quiet console=ttyS0,115200n8 console=ttyAMA0,115200n8
@@ -113,7 +113,7 @@ mkdir -p "${ISO_ROOT}/images/pxeboot" "${ISO_ROOT}/boot/grub"
 cp "${VMLINUZ}" "${ISO_ROOT}/images/pxeboot/vmlinuz"
 cp "${INITRD}"  "${ISO_ROOT}/images/pxeboot/initrd.img"
 cat > "${ISO_ROOT}/boot/grub/loopback.cfg" << EOF
-menuentry "XFCE Linux Live" {
+menuentry "Brussels Live (TunaOS)" {
     linux /images/pxeboot/vmlinuz root=live:CDLABEL=${LABEL} rd.live.image rd.live.overlay.overlayfs=1 enforcing=0 quiet console=ttyS0,115200n8 console=ttyAMA0,115200n8 rd.xfce.isofile=\${iso_path}
     initrd /images/pxeboot/initrd.img
 }

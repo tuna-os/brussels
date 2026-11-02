@@ -5,15 +5,14 @@
 
 set -euo pipefail
 
-if [[ $# -lt 4 ]]; then
-	echo "Usage: $0 <target> <ssh_port> <monitor_live_socket> <fisher_repo>" >&2
+if [[ $# -ne 3 ]]; then
+	echo "Usage: $0 <target> <ssh_port> <monitor_live_socket>" >&2
 	exit 1
 fi
 
 TARGET="$1"
 SSH_PORT="$2"
 MONITOR_LIVE="$3"
-FISHER_REPO="$4"
 
 DISK="/dev/vda"
 PAYLOAD_IMAGE=$(cat "${TARGET}/payload_ref" | tr -d '[:space:]')
@@ -32,7 +31,7 @@ if [[ "${BOOTLOADER}" == "grub" ]]; then BOOTLOADER="grub2"; fi
 # Determine target filesystem
 FILESYSTEM="btrfs"
 
-# Resolve install image (offline or network)
+# Select the verified source bound to this installation media.
 INSTALL_IMAGE=$(lib_resolve_install_image)
 
 # Mount scratch disk
@@ -43,13 +42,13 @@ RECIPE_TMP=$(mktemp /tmp/plain-recipe-XXXXXX.json)
 trap 'rm -f "${RECIPE_TMP}"' EXIT
 
 if [[ "${COMPOSEFS_BACKEND}" == "true" ]]; then
-	# Composefs path (dakota): podman-based install with VFS containers-storage.
-	printf '{\n  "disk": "%s",\n  "filesystem": "%s",\n  "image": "%s",\n  "composeFsBackend": true,\n  "bootloader": "%s",\n  "hostname": "xfce-linux-plain-test",\n  "encryption": {"type": "none"},\n  "flatpaks": []\n}\n' \
-		"${DISK}" "${FILESYSTEM}" "${INSTALL_IMAGE}" "${BOOTLOADER}" >"${RECIPE_TMP}"
+	# Empty image selects the immutable OCI source in media-input.json.
+	printf '{\n  "disk": "%s",\n  "filesystem": "%s",\n  "image": "%s",\n  "targetImgref": "%s",\n  "composeFsBackend": true,\n  "bootloader": "%s",\n  "hostname": "brussels-plain-test",\n  "encryption": {"type": "none"},\n  "flatpaks": []\n}\n' \
+		"${DISK}" "${FILESYSTEM}" "${INSTALL_IMAGE}" "${PAYLOAD_IMAGE}" "${BOOTLOADER}" >"${RECIPE_TMP}"
 else
 	# Ostree path (stable, lts): bootcDirect — fisherman runs bootc natively.
 	# Empty image triggers bootcDirect; targetImgref sets the day-2 rebase ref.
-	printf '{\n  "disk": "%s",\n  "filesystem": "%s",\n  "image": "",\n  "targetImgref": "%s",\n  "composeFsBackend": false,\n  "bootloader": "%s",\n  "hostname": "xfce-linux-plain-test",\n  "encryption": {"type": "none"},\n  "flatpaks": []\n}\n' \
+	printf '{\n  "disk": "%s",\n  "filesystem": "%s",\n  "image": "",\n  "targetImgref": "%s",\n  "composeFsBackend": false,\n  "bootloader": "%s",\n  "hostname": "brussels-plain-test",\n  "encryption": {"type": "none"},\n  "flatpaks": []\n}\n' \
 		"${DISK}" "${FILESYSTEM}" "${PAYLOAD_IMAGE}" "${BOOTLOADER}" >"${RECIPE_TMP}"
 fi
 

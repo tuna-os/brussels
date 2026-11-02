@@ -1,21 +1,12 @@
 name: Promote main to stable
 
-# Release bookmark automation (dakota-style): verifies the newest nightly
-# build + ISO + installer E2E checks on main all succeeded, then fast-forwards
-# the `stable` branch, dispatches the stable build, and verifies its published
-# image and ISO artifacts before declaring the release ready.
-#
-# Why the explicit dispatch: pushes made with GITHUB_TOKEN do not trigger
-# event workflows, but workflow_dispatch via the API does — and the ISO
-# build then chains off it via workflow_run.
+# Reuse the verified nightly image; promotion must not rebuild the OS.
+# All four health runs must match one commit. Key/signature gates cannot be
+# bypassed, and stable's ISO is rebuilt from the exact verified image digest.
+# GITHUB_TOKEN pushes do not trigger event workflows, so dispatch that ISO.
 
 on:
   workflow_dispatch:
-    inputs:
-      force:
-        description: 'Promote even if the health checks fail'
-        type: boolean
-        default: false
   schedule:
     # Weekly on Tuesday 09:00 UTC (after Monday's LUKS e2e)
     - cron: '0 9 * * 2'
@@ -23,7 +14,7 @@ on:
 permissions:
   contents: write
   actions: write
-  packages: read
+  packages: write
 
 concurrency:
   group: promote-stable
@@ -36,6 +27,15 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.1.2
+
+      - name: Validate release signing material
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          COSIGN_PASSWORD: ${{ secrets.SIGNING_SECRET_PASSWORD }}
+        run: bash scripts/check-release-signing.sh cosign.pub
 
       - name: Health check — latest nightly build + matching ISO green on main
         id: health
@@ -51,7 +51,7 @@ jobs:
             local wf="$1"
             local run
             run=$(gh run list --workflow "$wf" --branch main --limit 20 \
-                    --json conclusion,status,headSha \
+                    --json conclusion,status,headSha,databaseId \
                     --jq '.[0] // empty')
             [ -n "$run" ] || { echo "no runs of $wf" >&2; return 1; }
             local status concl sha
@@ -60,6 +60,12 @@ jobs:
             sha=$(echo "$run" | jq -r .headSha)
             echo "$wf: $status/$concl @ $sha" >&2
             [ "$status" = "completed" ] && [ "$concl" = "success" ] || return 1
+            echo "${wf}=${run}" >&2
+            case "$wf" in
+              "Build and Publish xfce-linux Live ISO") echo "iso_run=$(echo "$run" | jq -r .databaseId)" >> "$GITHUB_OUTPUT" ;;
+              "Plain Install End-to-End Test") echo "plain_run=$(echo "$run" | jq -r .databaseId)" >> "$GITHUB_OUTPUT" ;;
+              "LUKS Install End-to-End Test") echo "luks_run=$(echo "$run" | jq -r .databaseId)" >> "$GITHUB_OUTPUT" ;;
+            esac
             echo "$sha"
           }
           set +e
@@ -67,29 +73,44 @@ jobs:
           BUILD_OK=$?
           ISO_SHA=$(check "Build and Publish xfce-linux Live ISO")
           ISO_OK=$?
-          # The install E2E workflows only have to be green; their SHA is not
-          # part of the promotion identity, so discard it.
-          check "Plain Install End-to-End Test" >/dev/null
+          PLAIN_SHA=$(check "Plain Install End-to-End Test")
           PLAIN_OK=$?
-          check "LUKS Install End-to-End Test" >/dev/null
+          LUKS_SHA=$(check "LUKS Install End-to-End Test")
           LUKS_OK=$?
           set -e
           MATCH_OK=0
-          if [ $BUILD_OK -eq 0 ] && [ $ISO_OK -eq 0 ] && [ "$BUILD_SHA" != "$ISO_SHA" ]; then
-            echo "::error::Nightly build and ISO succeeded for different commits: build=$BUILD_SHA iso=$ISO_SHA"
+          if [ $BUILD_OK -eq 0 ] && [ $ISO_OK -eq 0 ] && \
+             [ $PLAIN_OK -eq 0 ] && [ $LUKS_OK -eq 0 ] && \
+             { [ "$BUILD_SHA" != "$ISO_SHA" ] || \
+               [ "$BUILD_SHA" != "$PLAIN_SHA" ] || \
+               [ "$BUILD_SHA" != "$LUKS_SHA" ]; }; then
+            echo "::error::Build, ISO, plain and LUKS checks must qualify the same commit."
             MATCH_OK=1
           fi
           if [ $BUILD_OK -ne 0 ] || [ $ISO_OK -ne 0 ] || \
              [ $PLAIN_OK -ne 0 ] || [ $LUKS_OK -ne 0 ] || [ $MATCH_OK -ne 0 ]; then
-            if [ "${{ inputs.force }}" = "true" ]; then
-              echo "Health checks failed but force=true — promoting HEAD of main."
-              BUILD_SHA=$(git rev-parse origin/main)
-            else
-              echo "::error::Health checks failed (build=$BUILD_OK, iso=$ISO_OK, plain-install=$PLAIN_OK, luks=$LUKS_OK, matching SHA ok=$((1 - MATCH_OK))); not promoting. Use force=true to override."
-              exit 1
-            fi
+            echo "::error::Health checks failed; no release promotion."
+            exit 1
           fi
           echo "sha=${BUILD_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify immutable nightly image
+        id: candidate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends skopeo
+          echo "$GH_TOKEN" | sudo skopeo login ghcr.io --username "github-actions[bot]" --password-stdin
+          digest=$(sudo skopeo inspect \
+            "docker://ghcr.io/tuna-os/xfce-linux:${{ steps.health.outputs.sha }}" \
+            --format '{{.Digest}}')
+          cosign verify --key cosign.pub "ghcr.io/tuna-os/xfce-linux@${digest}"
+          bash scripts/verify-qualified-payload.sh "${{ steps.health.outputs.sha }}" \
+            "ghcr.io/tuna-os/xfce-linux@${digest}" \
+            "${{ steps.health.outputs.iso_run }}" "${{ steps.health.outputs.plain_run }}" \
+            "${{ steps.health.outputs.luks_run }}"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
       - name: Fast-forward stable to the verified commit
         run: |
@@ -97,19 +118,35 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           echo "Promoting ${SHA} to stable"
-          git push origin "${SHA}:refs/heads/stable" --force
+          git push origin "${SHA}:refs/heads/stable"
           echo "stable → ${SHA}" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Dispatch stable build
+      - name: Promote existing signed image without rebuilding
+        env:
+          DIGEST: ${{ steps.candidate.outputs.digest }}
+        run: |
+          DATE_TAG=$(date -u +%Y%m%d)
+          for tag in stable "stable-${DATE_TAG}"; do
+            sudo skopeo copy --preserve-digests \
+              "docker://ghcr.io/tuna-os/xfce-linux@${DIGEST}" \
+              "docker://ghcr.io/tuna-os/xfce-linux:${tag}"
+          done
+
+      - name: Dispatch stable ISO with verified payload
         id: dispatch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run "Build xfce-linux (Multi-Runner)" --ref stable
+        run: |
+          echo "requested_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          gh workflow run build-iso.yml --ref stable \
+            -f payload_image="ghcr.io/tuna-os/xfce-linux@${{ steps.candidate.outputs.digest }}" \
+            -f skip_upload=false
 
-      - name: Wait for stable build and ISO publication
-        timeout-minutes: 720
+      - name: Wait for stable ISO publication
+        timeout-minutes: 60
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISO_REQUESTED_AT: ${{ steps.dispatch.outputs.requested_at }}
           RCLONE_CONFIG_R2_TYPE: s3
           RCLONE_CONFIG_R2_PROVIDER: Cloudflare
           RCLONE_CONFIG_R2_REGION: auto
@@ -124,9 +161,9 @@ jobs:
           wait_for_run() {
             local workflow="$1"
             local run status conclusion
-            for _ in $(seq 1 720); do
+            for _ in $(seq 1 50); do
               run=$(gh run list --workflow "$workflow" --branch stable \
-                --commit "$SHA" --limit 20 \
+                --commit "$SHA" --event workflow_dispatch --created ">=$ISO_REQUESTED_AT" --limit 20 \
                 --json status,conclusion \
                 --jq '.[0] // empty')
               if [ -n "$run" ]; then
@@ -146,14 +183,15 @@ jobs:
             exit 1
           }
 
-          wait_for_run "Build xfce-linux (Multi-Runner)"
           wait_for_run "Build and Publish xfce-linux Live ISO"
 
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends rclone skopeo
 
           echo "$GH_TOKEN" | sudo skopeo login ghcr.io --username "github-actions[bot]" --password-stdin
-          sudo skopeo inspect "docker://ghcr.io/tuna-os/xfce-linux:stable" >/dev/null
+          published=$(sudo skopeo inspect "docker://ghcr.io/tuna-os/xfce-linux:stable" --format '{{.Digest}}')
+          test "$published" = "${{ steps.candidate.outputs.digest }}"
+          cosign verify --key cosign.pub "ghcr.io/tuna-os/xfce-linux@${published}"
 
           tags=$(gh api --paginate \
             "/orgs/tuna-os/packages/container/xfce-linux/versions?per_page=100" \
@@ -162,7 +200,7 @@ jobs:
           grep -qx "$SHA" <<<"$tags" || { echo "::error::GHCR commit tag missing: $SHA"; exit 1; }
           grep -Eq '^stable-[0-9]{8}$' <<<"$tags" || { echo "::error::GHCR dated stable tag missing"; exit 1; }
 
-          prefix="R:${R2_BUCKET}/xfce-linux/stable"
+          prefix="R2:${R2_BUCKET}/xfce-linux/stable"
           tmp=$(mktemp -d)
           trap 'rm -rf "$tmp"' EXIT
           rclone lsf "$prefix/" | grep -qx 'xfce-linux-live-latest.iso' || \
@@ -171,5 +209,9 @@ jobs:
             { echo "::error::stable checksum missing from R2"; exit 1; }
           rclone copyto "$prefix/xfce-linux-live-latest.iso" "$tmp/xfce-linux-live-latest.iso"
           rclone copyto "$prefix/xfce-linux-live-latest.iso-CHECKSUM" "$tmp/checksum"
+          rclone copyto "$prefix/xfce-linux-live-latest.iso.sigstore.json" "$tmp/bundle.sigstore.json"
           (cd "$tmp" && sha256sum -c checksum)
-          echo "Stable GHCR tags and R2 ISO/checksum verified for $SHA" >> "$GITHUB_STEP_SUMMARY"
+          bash scripts/verify-iso-signature.sh \
+            "$tmp/xfce-linux-live-latest.iso" "$tmp/bundle.sigstore.json" \
+            "${{ github.server_url }}/${{ github.repository }}/.github/workflows/build-iso.yml@refs/heads/stable"
+          echo "Stable GHCR tags and R2 ISO/checksum/signature verified for $SHA" >> "$GITHUB_STEP_SUMMARY"

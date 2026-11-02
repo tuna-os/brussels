@@ -162,11 +162,27 @@ cp "$SCRIPT_DIR/etc/bootc-installer/images.json" /etc/bootc-installer/images.jso
 cp "$SCRIPT_DIR/etc/bootc-installer/recipe.json"  /etc/bootc-installer/recipe.json
 touch /etc/bootc-installer/live-iso-mode
 
-# tuna-installer frontends read /etc/tuna-installer/ (INSTALLER-FRONTENDS.md):
-# images.json catalog override + offline-stores listing embedded OCI store roots.
+# The live root is a writable overlay over squashfs. Fisherman requires the
+# actual OCI source filesystem to be read-only, not merely backed by squashfs.
+cat > /usr/lib/systemd/system/usr-lib-tunaos-payload.mount << 'PAYLOADEOF'
+[Unit]
+Description=Read-only Brussels installation payload
+Before=display-manager.service live-ready.service
+
+[Mount]
+What=/usr/lib/tunaos/payload
+Where=/usr/lib/tunaos/payload
+Type=none
+Options=bind,ro
+
+[Install]
+RequiredBy=local-fs.target
+PAYLOADEOF
+systemctl enable usr-lib-tunaos-payload.mount
+
+# The frontend catalog and fisherman share the embedded media binding.
 mkdir -p /etc/tuna-installer
 cp "$SCRIPT_DIR/etc/bootc-installer/images.json" /etc/tuna-installer/images.json
-echo '/var/lib/containers/storage' > /etc/tuna-installer/offline-stores
 
 # ── Installer autostart (XFCE variant) ────────────────────────────────────────
 # org.tunaos.InstallerXfce is installed from the tuna-os remote by
@@ -176,9 +192,9 @@ INSTALLER_APP_ID="org.tunaos.InstallerXfce"
 mkdir -p /etc/xdg/autostart
 cat > /etc/xdg/autostart/tuna-installer.desktop << DTEOF
 [Desktop Entry]
-Name=XFCE Linux Installer
+Name=Brussels Installer
 Exec=flatpak run ${INSTALLER_APP_ID}
-Icon=system-software-install
+Icon=brussels-logo
 Terminal=false
 Type=Application
 NotShowIn=KDE;
@@ -187,10 +203,10 @@ DTEOF
 mkdir -p /usr/share/applications
 cat > /usr/share/applications/xfce-linux-installer.desktop << DTEOF
 [Desktop Entry]
-Name=XFCE Linux Installer
-Comment=Install XFCE Linux to your computer
+Name=Brussels Installer
+Comment=Install Brussels by TunaOS to your computer
 Exec=flatpak run ${INSTALLER_APP_ID}
-Icon=system-software-install
+Icon=brussels-logo
 Type=Application
 Categories=System;
 NoDisplay=false
@@ -250,4 +266,4 @@ STOREOF
 
 # ── /etc/hostname ─────────────────────────────────────────────────────────────
 mkdir -p /usr/lib/tmpfiles.d
-echo 'f /etc/hostname 0644 - - - xfce-linux-live' > /usr/lib/tmpfiles.d/live-hostname.conf
+echo 'f /etc/hostname 0644 - - - brussels-live' > /usr/lib/tmpfiles.d/live-hostname.conf

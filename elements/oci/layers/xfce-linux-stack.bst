@@ -4,7 +4,7 @@ description: XFCE Linux stack — freedesktop-sdk base plus XFCE desktop
 depends:
   # XFCE Linux dependencies and applications
   - xfce-linux/deps.bst
-  # gnome-build-meta gnomeos stack (provides freedesktop-sdk base)
+  # GNOME OS base provides the freedesktop-sdk system tree
   - gnome-build-meta.bst:oci/gnomeos/stack.bst
 
 public:

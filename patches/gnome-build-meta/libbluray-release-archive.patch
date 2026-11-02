@@ -1,0 +1,32 @@
+diff --git a/elements/core-deps/libbluray.bst b/elements/core-deps/libbluray.bst
+--- a/elements/core-deps/libbluray.bst
++++ b/elements/core-deps/libbluray.bst
+@@ -1,13 +1,9 @@
+ kind: meson
+ sources:
+-- kind: git_repo
+-  url: videolan:libbluray.git
+-  track: '*.*.*'
+-  ref: 1.5.0-0-gd75c88e54c893e5cbf4c61d356477655eb435769
+-- kind: git_module
+-  url: videolan:libudfread.git
+-  path: contrib/libudfread
+-  ref: 139a2194525f2745b98a98e4d8fa627d07440176
++- kind: tar
++  # The official release includes contrib/libudfread; no Git submodule fetch.
++  url: videolan_pub:videolan/libbluray/1.5.0/libbluray-1.5.0.tar.xz
++  ref: f676408e91a5d321abf8b8d4dfdae36205c297dab5c54c3ec519639025f474a2
+ build-depends:
+ - freedesktop-sdk.bst:components/doxygen.bst
+ - freedesktop-sdk.bst:public-stacks/buildsystem-meson.bst
+diff --git a/include/aliases.yml b/include/aliases.yml
+--- a/include/aliases.yml
++++ b/include/aliases.yml
+@@ -37,6 +37,7 @@ aliases:
+   snowballstem: https://snowballstem.org/dist/
+   sourceforge: https://downloads.sourceforge.net/
+   tecnocode: https://tecnocode.co.uk/downloads/
++  videolan_pub: https://download.videolan.org/pub/
+   webkitgtk: https://webkitgtk.org/releases/
+ 
+   # git aliases go here

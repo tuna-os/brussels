@@ -32,12 +32,10 @@ env:
   BST2_IMAGE: registry.gitlab.com/freedesktop-sdk/infrastructure/freedesktop-sdk-docker-images/bst2:64eb0b4930d57a92710822898fb73af6cc1ae35d
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  # This build regularly takes multiple hours; main gets pushed to several
-  # times a day. cancel-in-progress:true meant every push evicted whatever
-  # build was in flight, so the pipeline effectively never completed (#66).
-  # Queue instead: the next run just picks up the latest HEAD when its turn
-  # comes, rather than restarting from scratch on every intervening push.
+  # All branches share rolling CAS tags: serialize writers, not just refs.
+  # A candidate must not overwrite a concurrent main build's cache progress.
+  group: ${{ github.workflow }}
+  # Preserve expensive in-flight work; queue the next build.
   cancel-in-progress: false
 
 permissions:
@@ -47,7 +45,9 @@ permissions:
 jobs:
   # ── Phase 1-3: Plan, core, parallel dependency chunks ────────────────
   multirunner:
-    uses: tuna-os/bst-ci/.github/workflows/multirunner-build.yml@main
+    # Stable only reuses qualified immutable images through promote/rollback.
+    if: github.ref != 'refs/heads/stable'
+    uses: tuna-os/bst-ci/.github/workflows/multirunner-build.yml@89c7d20d6e113533278158d7e5df64f663770e49
     permissions:
       contents: read
       packages: write
@@ -127,7 +127,7 @@ jobs:
   # ── Phase 4: Final assembly + push ──────────────────────────────────
   build_final:
     needs: multirunner
-    if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    if: always() && needs.multirunner.result == 'success'
     # ⚠️ Was 32-core build-amd64 final assembly. Now 2-core
     # GitHub-hosted — candidate for larger runner/kanpur if it nears 6h.
     runs-on: ubuntu-24.04
@@ -143,6 +143,16 @@ jobs:
           tool-cache: true
 
       - uses: actions/checkout@v7
+
+      - name: Restore BuildStream sources
+        id: sources
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/buildstream/sources
+          key: bst-sources-${{ env.IMAGE_NAME }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('elements/**/*.bst', 'project.conf', 'include/**', 'patches/**') }}-final-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            bst-sources-${{ env.IMAGE_NAME }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('elements/**/*.bst', 'project.conf', 'include/**', 'patches/**') }}-
+            bst-sources-${{ env.IMAGE_NAME }}-${{ runner.os }}-${{ runner.arch }}-
 
       - run: podman pull "$BST2_IMAGE"
 
@@ -196,10 +206,22 @@ jobs:
 
       - name: Build Final Target
         env:
-          BST_FLAGS: --no-interactive --config /src/buildstream-ci.conf
+          BST_FLAGS: --no-interactive --on-error quit --config /src/buildstream-ci.conf
         run: |
           mkdir -p logs
           timeout 300m just bst --log-file /src/logs/build-final.log build ${{ needs.multirunner.outputs.final_target }}
+
+      - name: Stop this workspace's remaining builders
+        id: source_snapshot
+        if: always()
+        run: bash scripts/stop-buildstream-builders.sh "$BST2_IMAGE" "$GITHUB_WORKSPACE"
+
+      - name: Save BuildStream sources after final build
+        if: always() && steps.source_snapshot.outcome == 'success' && steps.sources.outputs.cache-primary-key != '' && steps.sources.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/buildstream/sources
+          key: ${{ steps.sources.outputs.cache-primary-key }}
 
       - name: Check out the artifact and free the CAS
         env:
@@ -263,62 +285,39 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      # NOTE: the push gate below must stay in (event_name != 'workflow_dispatch' || inputs.push_image)
-      # form. `inputs.push_image != false` looks equivalent but is false on a schedule event, where
-      # `inputs` is null (null coerces to 0, false coerces to 0, so null != false is false) — that
-      # spelling silently skipped every publish/sign/scan step on all scheduled runs (#213).
+      # A schedule has no inputs; retain this explicit publish gate.
+      - name: Install cosign
+        if: ${{ github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+        uses: sigstore/cosign-installer@v4.1.2
+
+      - name: Validate release signing material
+        if: ${{ github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          COSIGN_PASSWORD: ${{ secrets.SIGNING_SECRET_PASSWORD }}
+        run: bash scripts/check-release-signing.sh cosign.pub
+
       - name: Login to GHCR (podman)
-        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.push_image }}
         run: |
           echo "$GITHUB_TOKEN" | \
             sudo podman login ghcr.io --username ${{ github.actor }} --password-stdin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push to GHCR
+      - name: Push immutable candidate to GHCR
         id: push
-        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.push_image }}
         run: |
-          DATE_TAG=$(date -u +%Y%m%d)
-          # Channels: main = nightly trunk (also owns :latest); stable = release bookmark
-          if [ "${{ github.ref }}" = "refs/heads/stable" ]; then
-            TAGS="stable stable-${DATE_TAG} ${{ github.sha }}"
-          else
-            TAGS="latest nightly nightly-${DATE_TAG} ${{ github.sha }}"
-          fi
-          for tag in $TAGS; do
-            sudo podman tag "localhost/${{ steps.export.outputs.image_ref }}" \
-              "${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}"
-            for i in 1 2 3; do
-              sudo podman push "${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}" && break
-              echo "Retry $i..."; sleep 5
-            done
-          done
-          digest=$(sudo podman inspect "${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" \
-            --format '{{.Digest}}')
+          digest=$(sudo bash scripts/push-image.sh \
+            "localhost/${{ steps.export.outputs.image_ref }}" \
+            "${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}")
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
-      - name: Install cosign
-        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
-        uses: sigstore/cosign-installer@v4.1.2
-
-      # Signed with a key, not keyless. bootc verifies images through
-      # containers-policy(5), whose `sigstoreSigned` type takes a public key
-      # baked into the image (`keyPath`); it has no way to express a Fulcio
-      # certificate identity, so a keyless signature is unverifiable by the
-      # thing that actually consumes this image. Same shape as
-      # zirconium-dev/zirconium-hawaii, which signs with `SIGNING_SECRET` and
-      # ships the public half at /usr/share/pki/containers/.
-      #
-      # Signs the digest once rather than each tag: every tag pushed above
-      # resolves to this digest, and cosign stores the signature against the
-      # digest either way.
-      #
-      # Gated on the secret existing so a fork or a repo without the key
-      # still builds and publishes; the step reports skipped instead of
-      # failing. Remove the guard once the key is in place permanently.
+      # bootc's declared trust model uses a committed public key, not keyless.
+      # Signing and verification are required before mutable channel promotion.
       - name: Sign image (cosign, key)
-        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) && env.COSIGN_PRIVATE_KEY != '' }}
+        if: ${{ github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
           COSIGN_PASSWORD: ${{ secrets.SIGNING_SECRET_PASSWORD }}
@@ -326,16 +325,20 @@ jobs:
           cosign sign -y --key env://COSIGN_PRIVATE_KEY \
             "${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}"
 
-      - name: Warn when the image went out unsigned
-        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) && env.COSIGN_PRIVATE_KEY == '' }}
-        env:
-          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+      - name: Verify image signature
+        if: ${{ github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
         run: |
-          echo "::warning::SIGNING_SECRET is not set — published an unsigned image. See docs/signing.md."
+          cosign verify --key cosign.pub \
+            "${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}"
+
+      - name: Record unsigned experimental candidate
+        if: ${{ steps.push.outcome == 'success' && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::warning::SHA-only experimental candidate is unsigned, not security-qualified. See docs/signing.md."
+          echo "## Unsigned experimental candidate — not security-qualified" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Trivy image scan
-        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
-        continue-on-error: true
+        if: ${{ steps.push.outcome == 'success' && success() }}
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
@@ -344,15 +347,28 @@ jobs:
           severity: CRITICAL,HIGH
 
       - name: Upload Trivy scan results
-        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
-        continue-on-error: true
+        if: ${{ always() && steps.push.outcome == 'success' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif
+
+      - name: Promote verified release channels
+        if: ${{ success() && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+        env:
+          EXPECTED_DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          DATE_TAG=$(date -u +%Y%m%d)
+          TAGS="latest nightly nightly-${DATE_TAG}"
+          for tag in $TAGS; do
+            digest=$(sudo bash scripts/push-image.sh \
+              "localhost/${{ steps.export.outputs.image_ref }}" \
+              "${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}")
+            test "$digest" = "$EXPECTED_DIGEST"
+          done
 
       - name: Build summary
         if: always()
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Target**: \`${BST_TARGET}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image**: \`${IMAGE_REGISTRY}/${IMAGE_NAME}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Candidate**: \`${IMAGE_REGISTRY}/${IMAGE_NAME}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY

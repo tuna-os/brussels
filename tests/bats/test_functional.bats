@@ -111,3 +111,17 @@ print('Syntax OK')
   run grep -E '/output/|cp .* /output' "${REPO_ROOT}/build-xfwl4.sh"
   [ "$status" -eq 0 ]
 }
+
+# ── Shipped-installer command interfaces ─────────────────────────────────
+
+@test "plain install: rejects the removed fisherman checkout argument" {
+  run bash "${REPO_ROOT}/scripts/plain-install-qemu.sh" target 2222 /tmp/monitor /checkout
+  [ "$status" -eq 1 ]
+  [[ "$output" =~ Usage ]]
+}
+
+@test "LUKS install: rejects the removed fisherman checkout argument" {
+  run bash "${REPO_ROOT}/scripts/luks-install-qemu.sh" target password 2222 /tmp/monitor /checkout
+  [ "$status" -eq 1 ]
+  [[ "$output" =~ Usage ]]
+}

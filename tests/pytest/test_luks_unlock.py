@@ -176,26 +176,6 @@ class TestLuksUnlock(unittest.TestCase):
         actual_calls = [(call[0][0], call[1].get("input")) for call in mock_run.call_args_list]
         self.assertEqual(actual_calls, expected_calls)
 
-    @patch("time.sleep")
-    @patch("subprocess.run")
-    def test_qemu_send_passphrase_edge_cases(self, mock_run, mock_sleep):
-        # Test spaces, underscores, uppercase (skipped) and special chars (skipped)
-        luks_unlock.qemu_send_passphrase("/tmp/sock", "a_B $")
-
-        # 'a' -> a
-        # '_' -> shift-minus
-        # 'B' -> skipped (uppercase not in map)
-        # ' ' -> spc
-        # '$' -> skipped
-        # Always followed by ret
-        expected_calls = [
-            (["socat", "-", "UNIX-CONNECT:/tmp/sock"], b"sendkey a\n"),
-            (["socat", "-", "UNIX-CONNECT:/tmp/sock"], b"sendkey shift-minus\n"),
-            (["socat", "-", "UNIX-CONNECT:/tmp/sock"], b"sendkey spc\n"),
-            (["socat", "-", "UNIX-CONNECT:/tmp/sock"], b"sendkey ret\n")
-        ]
-        actual_calls = [(call[0][0], call[1].get("input")) for call in mock_run.call_args_list]
-        self.assertEqual(actual_calls, expected_calls)
 
     @patch("time.sleep")
     @patch("subprocess.run")
@@ -207,6 +187,61 @@ class TestLuksUnlock(unittest.TestCase):
         ]
         actual_calls = [(call[0][0], call[1].get("input")) for call in mock_run.call_args_list]
         self.assertEqual(actual_calls, expected_calls)
+
+    # ── Plain installed-boot behavior ────────────────────────────────────────
+
+    @patch("luks_unlock.run_wait_live")
+    def test_run_wait_boot_ansi_gdm_requires_gui(self, wait_live):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as serial:
+            serial.write("[\x1b[0;32m OK \x1b[0m] Started \x1b[0;1;39mgdm.service\x1b[0m - GNOME Display Manager.")
+            serial.flush()
+            luks_unlock.run_wait_boot("/tmp/monitor", "/tmp/screen.ppm", serial.name)
+        wait_live.assert_called_once_with("/tmp/monitor", "/tmp/screen.ppm")
+
+    @patch("luks_unlock.run_wait_live")
+    def test_run_wait_boot_emergency_overrides_display_manager(self, wait_live):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as serial:
+            serial.write("Started gdm.service\nEntering emergency mode.")
+            serial.flush()
+            with self.assertRaises(SystemExit) as result:
+                luks_unlock.run_wait_boot("/tmp/monitor", "/tmp/screen.ppm", serial.name)
+        self.assertEqual(result.exception.code, 1)
+        wait_live.assert_not_called()
+
+    @patch("luks_unlock.run_wait_live", side_effect=SystemExit(1))
+    def test_run_wait_boot_does_not_hide_gui_failure(self, wait_live):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as serial:
+            serial.write("Started gdm.service")
+            serial.flush()
+            with self.assertRaises(SystemExit) as result:
+                luks_unlock.run_wait_boot("/tmp/monitor", "/tmp/screen.ppm", serial.name)
+        self.assertEqual(result.exception.code, 1)
+        wait_live.assert_called_once()
+
+    @patch("luks_unlock.run_wait_live")
+    @patch("time.sleep")
+    @patch("time.time", side_effect=[0, 0, 301])
+    def test_run_wait_boot_login_alone_times_out(self, clock, sleep, wait_live):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as serial:
+            serial.write("brussels-plain-test login: ")
+            serial.flush()
+            with self.assertRaises(SystemExit) as result:
+                luks_unlock.run_wait_boot("/tmp/monitor", "/tmp/screen.ppm", serial.name)
+        self.assertEqual(result.exception.code, 1)
+        wait_live.assert_not_called()
+        sleep.assert_called_once_with(5)
+
+    def test_main_wait_boot_requires_serial_argument(self):
+        with patch("sys.argv", ["luks-unlock.py", "wait-boot", "/tmp/monitor", "/tmp/screen.ppm"]):
+            with self.assertRaises(SystemExit) as result:
+                luks_unlock.main()
+        self.assertEqual(result.exception.code, 1)
+
+    @patch("luks_unlock.run_wait_boot")
+    def test_main_wait_boot_dispatch(self, wait_boot):
+        with patch("sys.argv", ["luks-unlock.py", "wait-boot", "/tmp/monitor", "/tmp/screen.ppm", "/tmp/serial"]):
+            luks_unlock.main()
+        wait_boot.assert_called_once_with("/tmp/monitor", "/tmp/screen.ppm", "/tmp/serial")
 
     # ── main() Routing Tests ───────────────────────────────────────────────────
 
@@ -251,14 +286,6 @@ class TestLuksUnlock(unittest.TestCase):
             mock_exit.assert_not_called()
 
     @patch("sys.exit")
-    @patch("luks_unlock.run_qemu")
-    def test_main_qemu_success(self, mock_run_qemu, mock_exit):
-        with patch("sys.argv", ["luks-unlock.py", "qemu", "/tmp/sock", "pass123", "/tmp/serial.log"]):
-            luks_unlock.main()
-            mock_run_qemu.assert_called_once_with("/tmp/sock", "pass123", "/tmp/serial.log")
-            mock_exit.assert_not_called()
-
-    @patch("sys.exit")
     def test_main_wait_live_insufficient_args(self, mock_exit):
         mock_exit.side_effect = SystemExit(1)
         with patch("sys.argv", ["luks-unlock.py", "wait-live", "/tmp/sock"]):
@@ -288,6 +315,12 @@ class TestLuksUnlock(unittest.TestCase):
         self.assertEqual(mock_screendump.call_count, 4)
         mock_copy.assert_called_with("/tmp/luks-live-boot-snap.ppm", "/tmp/screenshot.ppm")
 
+    @patch("luks_unlock.qemu_screendump", return_value=(2.0, "bright-frame"))
+    @patch("shutil.copy2", side_effect=PermissionError("screenshot denied"))
+    def test_run_wait_live_screenshot_failure_propagates(self, mock_copy, mock_screendump):
+        with self.assertRaises(PermissionError):
+            luks_unlock.run_wait_live("/tmp/sock", "/tmp/unwritable-screenshot.ppm")
+
     @patch("luks_unlock.qemu_screendump")
     @patch("time.sleep")
     @patch("shutil.copy2")
@@ -295,7 +328,9 @@ class TestLuksUnlock(unittest.TestCase):
         # Always dark, or never stable
         mock_screendump.return_value = (0.1, 'a')
         with patch("time.time", side_effect=[0, 100, 200, 301]):
-            luks_unlock.run_wait_live("/tmp/sock", "/tmp/screenshot.ppm")
+            with self.assertRaises(SystemExit) as result:
+                luks_unlock.run_wait_live("/tmp/sock", "/tmp/screenshot.ppm")
+            self.assertEqual(result.exception.code, 1)
         # Should not copy since brightness < threshold
         mock_copy.assert_not_called()
 
@@ -310,7 +345,9 @@ class TestLuksUnlock(unittest.TestCase):
             (2.0, 'd')
         ]
         with patch("time.time", side_effect=[0, 100, 200, 301]):
-            luks_unlock.run_wait_live("/tmp/sock", "/tmp/screenshot.ppm")
+            with self.assertRaises(SystemExit) as result:
+                luks_unlock.run_wait_live("/tmp/sock", "/tmp/screenshot.ppm")
+            self.assertEqual(result.exception.code, 1)
         # Should copy the bright frames
         self.assertTrue(mock_copy.called)
 
@@ -630,17 +667,6 @@ class TestVirshSendPassphraseEdgeCases(unittest.TestCase):
 class TestQemuSendPassphraseEdgeCases(unittest.TestCase):
     """Additional coverage for qemu_send_passphrase."""
 
-    def test_uppercase_triggers_warning(self):
-        import io
-        buf = io.StringIO()
-        with (
-            patch("subprocess.run", return_value=MagicMock()),
-            patch("time.sleep"),
-            patch("sys.stderr", buf),
-        ):
-            luks_unlock.qemu_send_passphrase("/sock", "Z")
-        self.assertIn("WARNING", buf.getvalue())
-
     def test_underscore_and_minus_differ(self):
         """_ → shift-minus and - → minus must be distinct QEMU key names."""
         sent_minus = []
@@ -716,169 +742,6 @@ class TestRunLibvirt(unittest.TestCase):
         self.assertEqual(cm.exception.code, 2)
         mock_send.assert_called_once_with("myvm", "secret")
 
-
-class TestRunQemu(unittest.TestCase):
-    """run_qemu(monitor_sock, passphrase, serial_log) — the QEMU-monitor state
-    machine that `just luks-unlock-qemu` runs for real in CI (test-luks-install.yml).
-    Real hardware isn't available here, so every helper it calls is mocked;
-    these tests exercise the branch logic that decides success/failure.
-    """
-
-    @patch("shutil.copy2")
-    @patch("luks_unlock.qemu_send_passphrase")
-    @patch("luks_unlock.qemu_screendump")
-    @patch("luks_unlock.qemu_check_serial")
-    @patch("time.sleep")
-    def test_serial_plymouth_then_gnome_initial_setup_exits_zero(
-        self, mock_sleep, mock_serial, mock_dump, mock_send, mock_copy
-    ):
-        # Search loop: serial reports "plymouth" immediately → send passphrase.
-        # Post-passphrase loop: serial reports "gnome-initial-setup" → success.
-        mock_serial.side_effect = ["plymouth", "gnome-initial-setup"]
-        mock_dump.return_value = (1.0, "deadbeef")
-        with patch("time.time", side_effect=range(0, 20)):
-            with self.assertRaises(SystemExit) as cm:
-                luks_unlock.run_qemu("/tmp/sock", "secret", "/tmp/serial.log")
-        self.assertEqual(cm.exception.code, 0)
-        mock_send.assert_called_once_with("/tmp/sock", "secret")
-
-    @patch("shutil.copy2")
-    @patch("luks_unlock.qemu_send_passphrase")
-    @patch("luks_unlock.qemu_screendump")
-    @patch("luks_unlock.qemu_check_serial")
-    @patch("time.sleep")
-    def test_serial_plymouth_then_gdm_waits_then_exits_zero(
-        self, mock_sleep, mock_serial, mock_dump, mock_send, mock_copy
-    ):
-        mock_serial.side_effect = ["plymouth", "gdm"]
-        mock_dump.return_value = (2.0, "cafefeed")
-        with patch("time.time", side_effect=range(0, 20)):
-            with self.assertRaises(SystemExit) as cm:
-                luks_unlock.run_qemu("/tmp/sock", "secret", "/tmp/serial.log")
-        self.assertEqual(cm.exception.code, 0)
-
-    @patch("shutil.copy2")
-    @patch("luks_unlock.qemu_send_passphrase")
-    @patch("luks_unlock.qemu_screendump")
-    @patch("luks_unlock.qemu_check_serial")
-    @patch("time.sleep")
-    def test_framebuffer_stability_fallback_detects_plymouth(
-        self, mock_sleep, mock_serial, mock_dump, mock_send, mock_copy
-    ):
-        # No serial console at all — search loop must fall back to hash
-        # stability: content appears, then two identical hashes in a row.
-        mock_serial.return_value = ""
-        mock_dump.side_effect = [
-            (1.0, "hash1"),   # had_content becomes True
-            (1.0, "hash2"),   # stable_count 0 (differs from prev)
-            (1.0, "hash2"),   # stable_count 1
-            (1.0, "hash2"),   # stable_count 2 -> STABLE_POLLS reached, send passphrase
-            (1.0, "hash3"),   # post-passphrase: screen changed
-            (1.0, "hash3"),   # same hash again -> 1 stable poll, GNOME_STABLE_POLLS=1
-        ]
-        with patch("time.time", side_effect=range(0, 20)):
-            with self.assertRaises(SystemExit) as cm:
-                luks_unlock.run_qemu("/tmp/sock", "secret", "/tmp/serial.log")
-        mock_send.assert_called_once_with("/tmp/sock", "secret")
-        self.assertIn(cm.exception.code, (0, 2))
-
-    @patch("luks_unlock.qemu_screendump")
-    @patch("luks_unlock.qemu_check_serial")
-    @patch("time.sleep")
-    def test_plymouth_never_detected_exits_one(self, mock_sleep, mock_serial, mock_dump):
-        mock_serial.return_value = ""
-        mock_dump.return_value = (-1, "")
-        with patch("time.time", side_effect=[0, 301]):
-            with self.assertRaises(SystemExit) as cm:
-                luks_unlock.run_qemu("/tmp/sock", "secret", "/tmp/serial.log")
-        self.assertEqual(cm.exception.code, 1)
-
-    @patch("shutil.copy2")
-    @patch("luks_unlock.qemu_send_passphrase")
-    @patch("luks_unlock.qemu_screendump")
-    @patch("luks_unlock.qemu_check_serial")
-    @patch("time.sleep")
-    def test_post_passphrase_emergency_shell_exits_two(
-        self, mock_sleep, mock_serial, mock_dump, mock_send, mock_copy
-    ):
-        mock_serial.side_effect = ["plymouth", "emergency"]
-        mock_dump.return_value = (1.0, "deadbeef")
-        with patch("time.time", side_effect=range(0, 20)):
-            with self.assertRaises(SystemExit) as cm:
-                luks_unlock.run_qemu("/tmp/sock", "secret", "/tmp/serial.log")
-        self.assertEqual(cm.exception.code, 2)
-
-    @patch("shutil.copy2")
-    @patch("luks_unlock.qemu_send_passphrase")
-    @patch("luks_unlock.qemu_screendump")
-    @patch("luks_unlock.qemu_check_serial")
-    @patch("time.sleep")
-    def test_post_passphrase_framebuffer_bright_exits_zero(
-        self, mock_sleep, mock_serial, mock_dump, mock_send, mock_copy
-    ):
-        # No serial at all post-passphrase — must fall back to brightness +
-        # single-stable-poll heuristic (GNOME_STABLE_POLLS=1).
-        mock_serial.side_effect = ["plymouth", "", "", ""]
-        mock_dump.side_effect = [
-            (1.0, "plymouth-hash"),   # inside serial-plymouth branch
-            (1.0, "changed-hash"),    # post-passphrase: screen_changed=True
-            (2.5, "changed-hash"),    # same hash as prev -> stable, bright
-        ]
-        with patch("time.time", side_effect=range(0, 20)):
-            with self.assertRaises(SystemExit) as cm:
-                luks_unlock.run_qemu("/tmp/sock", "secret", "/tmp/serial.log")
-        self.assertEqual(cm.exception.code, 0)
-
-    @patch("shutil.copy2")
-    @patch("luks_unlock.qemu_send_passphrase")
-    @patch("luks_unlock.qemu_screendump")
-    @patch("luks_unlock.qemu_check_serial")
-    @patch("time.sleep")
-    def test_post_passphrase_framebuffer_dark_suspects_emergency(
-        self, mock_sleep, mock_serial, mock_dump, mock_send, mock_copy
-    ):
-        mock_serial.side_effect = ["plymouth", "", "", ""]
-        mock_dump.side_effect = [
-            (1.0, "plymouth-hash"),
-            (0.2, "changed-hash"),
-            (0.2, "changed-hash"),
-        ]
-        with patch("time.time", side_effect=range(0, 20)):
-            with self.assertRaises(SystemExit) as cm:
-                luks_unlock.run_qemu("/tmp/sock", "secret", "/tmp/serial.log")
-        self.assertEqual(cm.exception.code, 2)
-
-    @patch("shutil.copy2")
-    @patch("luks_unlock.qemu_send_passphrase")
-    @patch("luks_unlock.qemu_screendump")
-    @patch("luks_unlock.qemu_check_serial")
-    @patch("time.sleep")
-    def test_post_passphrase_timeout_exits_two(
-        self, mock_sleep, mock_serial, mock_dump, mock_send, mock_copy
-    ):
-        mock_serial.side_effect = ["plymouth"] + [""] * 30
-        mock_dump.return_value = (1.0, "same-hash")
-        # Search loop: t=0 (deadline=300), t=1 breaks on plymouth.
-        # Post loop: deadline = t + 300; feed one in-range tick then jump past it.
-        with patch("time.time", side_effect=[0, 1, 2, 305]):
-            with self.assertRaises(SystemExit) as cm:
-                luks_unlock.run_qemu("/tmp/sock", "secret", "/tmp/serial.log")
-        self.assertEqual(cm.exception.code, 2)
-
-    @patch("luks_unlock.qemu_screendump")
-    @patch("luks_unlock.qemu_check_serial")
-    @patch("time.sleep")
-    def test_negative_brightness_resets_stability_and_continues(
-        self, mock_sleep, mock_serial, mock_dump
-    ):
-        """A failed screendump (-1 brightness) must not crash and must reset
-        stable_count rather than being treated as a valid frame."""
-        mock_serial.return_value = ""
-        mock_dump.side_effect = [(-1, ""), (-1, ""), (1.0, "h")]
-        with patch("time.time", side_effect=[0, 1, 2, 301]):
-            with self.assertRaises(SystemExit) as cm:
-                luks_unlock.run_qemu("/tmp/sock", "secret", "/tmp/serial.log")
-        self.assertEqual(cm.exception.code, 1)
 
 
 if __name__ == "__main__":

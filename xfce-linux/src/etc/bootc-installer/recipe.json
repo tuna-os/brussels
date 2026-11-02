@@ -1,15 +1,14 @@
 {
   "log_file": "/var/log/bootc-installer.log",
-  "distro_name": "XFCE Linux",
-  "distro_logo": "resource:///org/bootcinstaller/Installer/images/aurora.png",
+  "distro_name": "Brussels",
+  "distro_logo": "file:///usr/share/icons/hicolor/scalable/apps/brussels-logo.svg",
   "imgref": "ghcr.io/tuna-os/xfce-linux:latest",
-  "local_imgref": "containers-storage:ghcr.io/tuna-os/xfce-linux:latest",
   "bootloader": "systemd",
   "composeFsBackend": false,
   "tour": {
     "welcome": {
-      "title": "Welcome to XFCE Linux",
-      "description": "XFCE Linux is an immutable XFCE desktop on freedesktop-sdk with daily bootc updates. Thanks for testing!"
+      "title": "Welcome to Brussels",
+      "description": "Brussels is an experimental TunaOS desktop built from GNOME OS, freedesktop-sdk and Xfce. Thanks for testing!"
     },
     "features": {
       "title": "XFCE on Wayland",
@@ -21,7 +20,7 @@
     },
     "completed": {
       "title": "Ready to Install",
-      "description": "Select a disk to install XFCE Linux. The process takes a few minutes."
+      "description": "Select a disk to install Brussels. Installation erases the selected disk."
     }
   },
   "steps": {

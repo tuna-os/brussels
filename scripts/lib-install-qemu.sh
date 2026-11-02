@@ -9,7 +9,6 @@
 #   TARGET: path to target directory (contains payload_ref, composefs, bootloader files)
 #   SSH_PORT: SSH port for QEMU VM
 #   MONITOR_LIVE: path to QEMU monitor socket
-#   FISHER_REPO: path to fisherman Git repository
 #   PAYLOAD_IMAGE: image reference (read from TARGET/payload_ref)
 #   RECIPE_JSON: JSON recipe to install (caller must generate with encryption config)
 #   RECIPE_PATH: destination path for recipe in /tmp on VM
@@ -34,15 +33,11 @@ SCP="sshpass -p live scp $SSH_OPTS -P ${SSH_PORT}"
 # ─────────────────────────────────────────────────────────────────────────
 
 lib_resolve_install_image() {
-	# Use local containers-storage if the image is cached there (offline install);
-	# otherwise fall back to a network pull via docker://.
-	if $SSH "sudo podman image exists '${PAYLOAD_IMAGE}' 2>/dev/null"; then
-		echo "containers-storage:${PAYLOAD_IMAGE}"
-		echo "Image found in local containers-storage — using offline install." >&2
-	else
-		echo "docker://${PAYLOAD_IMAGE}"
-		echo "Image not in local store — fisherman will pull from network." >&2
-	fi
+	# Fail before touching a disk if the immutable media contract is absent.
+	$SSH "sudo test -r /etc/bootc-installer/media-input.json"
+	$SSH "sudo test -r /usr/lib/tunaos/payload/index.json"
+	# An empty recipe image selects fisherman's verified, media-bound source.
+	printf ''
 }
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -60,61 +55,20 @@ lib_mount_scratch_disk() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────
-# Composefs Path: Podman-based install
-# ─────────────────────────────────────────────────────────────────────────
-
-lib_run_composefs_install() {
-	local recipe_tmp="$1"
-	local recipe_dest="$2"
-	
-	$SCP "${recipe_tmp}" liveuser@127.0.0.1:"${recipe_dest}"
-	echo "Uploaded recipe — running fisherman (takes several minutes)..." >&2
-	$SCP "scripts/fisherman-install.sh" liveuser@127.0.0.1:/tmp/fisherman-install.sh
-	$SSH "sudo bash /tmp/fisherman-install.sh ${recipe_dest}"
-}
-
-# ─────────────────────────────────────────────────────────────────────────
-# Ostree Path: bootcDirect (fisherman runs bootc natively)
-# ─────────────────────────────────────────────────────────────────────────
-
-lib_run_bootcdirect_install() {
-	local recipe_tmp="$1"
-	local recipe_dest="$2"
-	
-	echo "Uploaded recipe — building patched fisherman for bootcDirect..." >&2
-	FISHERMAN_BIN=$(mktemp /tmp/fisherman-XXXXXX)
-	trap "rm -f '${recipe_tmp}' '${FISHERMAN_BIN}'" EXIT
-	(cd "${FISHER_REPO}" && CGO_ENABLED=0 go build -o "${FISHERMAN_BIN}" ./cmd/fisherman/)
-	$SCP "${FISHERMAN_BIN}" liveuser@127.0.0.1:/tmp/fisherman
-	$SSH 'chmod +x /tmp/fisherman'
-	echo "Running fisherman (bootcDirect, takes several minutes)..." >&2
-	$SCP "${recipe_tmp}" liveuser@127.0.0.1:"${recipe_dest}"
-	$SCP "scripts/fisherman-install.sh" liveuser@127.0.0.1:/tmp/fisherman-install.sh
-	if ! $SSH "sudo FISHERMAN_BIN=/tmp/fisherman bash /tmp/fisherman-install.sh ${recipe_dest}"; then
-		echo "=== INSTALL FAILURE DIAGNOSTICS ===" >&2
-		echo "--- dmesg ---" >&2
-		$SSH 'sudo dmesg | tail -n 100' || true
-		echo "--- journalctl ---" >&2
-		$SSH 'sudo journalctl -n 100 --no-pager' || true
-		echo "--- systemd-oomd status ---" >&2
-		$SSH 'sudo systemctl status systemd-oomd --no-pager' || true
-		exit 1
-	fi
-}
-
-# ─────────────────────────────────────────────────────────────────────────
-# Execute Install (dispatches to composefs or bootcDirect)
+# Shipped fisherman (composefs and native bootc paths)
 # ─────────────────────────────────────────────────────────────────────────
 
 lib_execute_install() {
 	local recipe_tmp="$1"
 	local recipe_dest="$2"
-	if [[ "${COMPOSEFS_BACKEND}" == "true" ]]; then
-		lib_run_composefs_install "${recipe_tmp}" "${recipe_dest}"
-	else
-		lib_run_bootcdirect_install "${recipe_tmp}" "${recipe_dest}"
-	fi
+	echo "=== Live desktop/session diagnostics ===" >&2
+	$SSH 'sudo journalctl -b --no-pager | grep -Ev "TRACE|xfconf_backend_perchannel" | grep -E "xfwl4|xfce4-session|xfce4-panel|xfdesktop|tuna|ERROR|WARN|PANIC|panic" | tail -n 100' >&2
+	
+	$SCP "${recipe_tmp}" liveuser@127.0.0.1:"${recipe_dest}"
+	echo "Uploaded recipe — running fisherman (takes several minutes)..." >&2
+	$SSH "sudo /usr/local/bin/fisherman ${recipe_dest}"
 }
+
 
 # ─────────────────────────────────────────────────────────────────────────
 # QEMU Monitor Shutdown

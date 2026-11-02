@@ -1,10 +1,10 @@
-# XFCE Linux — Agent Context
+# Brussels — Agent Context
 
-XFCE Linux is a BuildStream-based, vanilla-from-source XFCE (Wayland, xfwl4)
-OCI/bootc image. Sister project of `tuna-os/tromso` (KDE + Aurora layer);
-both are modeled on projectbluefin/dakota + dakota-iso. An opinionated
-experience layer on top (like tromso's Aurora layer) is planned but not yet
-started.
+Brussels is TunaOS's experimental BuildStream-based Xfce Wayland (xfwl4)
+OCI/bootc image. The repository, BuildStream project and image remain
+`xfce-linux` to preserve consumers and caches. Sister projects are Athens
+(Pantheon) and Tromsø (KDE). Upstream GNOME OS, freedesktop-sdk, Xfce and
+projectbluefin/dakota infrastructure retain their credit.
 
 ## Architecture
 
@@ -48,9 +48,42 @@ Heavy builds should run in CI, not on a laptop.
   flatpak remote (`https://tunaos.org/flatpak/tuna-os.flatpakrepo`), baked
   into the ISO only — never into the OS image. Keep
   `install-flatpaks.sh` and `configure-live.sh` referring to the *same* app ID.
-- Plymouth: the gnomeos parent already ships plymouth + GNOME watermark;
-  `elements/xfce-linux/plymouth-theme.bst` shadows it (XFCE logo) and must
-  keep its `runtime-depends` on the GNOME theme to win the staging order.
+- Plymouth: GNOME OS supplies the bgrt/spinner theme.
+  `elements/xfce-linux/plymouth-theme.bst` installs original Brussels artwork;
+  retain its runtime dependency on the GNOME theme for staging order.
+- Brussels uses an original botanical yellow iris, not the official regional
+  emblem or an altered Xfce logo. Keep icon, wordmark, wallpaper SVG/PNG and
+  expected visual assets consistent; the wordmark must credit Xfce and TunaOS.
+  Keep visible letters as glyph paths, not font-dependent `<text>` nodes.
+  Preserve the embedded DejaVu license in assets that use its glyphs.
+- Live media embeds `/usr/lib/tunaos/payload` as a read-only OCI layout.
+  `scripts/embed-payload.sh` records the actual platform manifest/config in
+  `/etc/bootc-installer/media-input.json`; fisherman must verify it before
+  partitioning. Never reintroduce VFS/network fallback or omit this contract.
+- Live and embedded payloads resolve from one immutable registry digest.
+- `scripts/prepare-payload.sh` applies the dakota-iso composefs contract:
+  source-only squash, valid root-mount TOML, and the actual final layer diffid
+  as both label and OCI annotation. Do not embed the raw chunked registry image
+  or leak live-only configuration into the installation payload.
+- Target Ubuntu's Skopeo 1.13.3; use `--dest-compress-format gzip`, not the
+  unsupported `--dest-force-compress-format` flag.
+- ISO signing uses a Sigstore `.sigstore.json` bundle (cosign 3+), not the
+  deprecated detached `.sig`/`.cert` flags.
+  Cosign's file mode buffers the full ISO. Use the pinned official Python
+  Sigstore CLI to stream-sign and `scripts/verify-iso-signature.sh` to verify
+  the actual streamed hash. Keep identity, issuer and transparency checks.
+- OCI push consumers must use the destination digest from
+  `scripts/push-image.sh`, never local `podman inspect .Digest`.
+  Scanner/SARIF failures are hard failures, including SHA-only candidates.
+- Mutable releases require the approved matching `SIGNING_SECRET` and
+  `cosign.pub`, signature verification and the CRITICAL/HIGH scan.
+  Do not generate keys, bypass these gates or treat unsigned candidates as
+  security-qualified. Stable promotion retags a verified digest without an OS
+  rebuild. Installed bootc policy enforcement is a separate open prerequisite.
+  ISO, plain and LUKS qualification artifacts must bind that exact source
+  commit, image revision and registry digest. Old-payload smoke is not qualification.
+  Keep the existing report-only CVE behavior distinct from operational scanner
+  failures: actual findings remain security-qualification blockers.
 - Renovate handles Actions/containers; `.bst` refs are bumped by
   `track-bst-sources.yml` (`bst source track`). Junction bumps
   (freedesktop-sdk, gnome-build-meta) are review-required.
@@ -71,6 +104,6 @@ Heavy builds should run in CI, not on a laptop.
 - Renaming a required job means updating the branch-protection contexts in
   the same PR.
 - Never wrap a gate in `|| echo` — that's how checks go silently dead.
-- `tests/pytest/test_iso_invariants.py` encodes shipped bug classes; when
-  you fix a CI/ISO bug, add an invariant there and a row to
-  docs/ci-and-iso-pipeline.md.
+- For CI/ISO fixes, add a consumer-visible behavior regression where practical,
+  or record real runtime smoke evidence. Do not add source-text/wiring assertions.
+  Update the troubleshooting record in docs/ci-and-iso-pipeline.md.
