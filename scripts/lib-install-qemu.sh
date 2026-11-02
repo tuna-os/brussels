@@ -9,7 +9,6 @@
 #   TARGET: path to target directory (contains payload_ref, composefs, bootloader files)
 #   SSH_PORT: SSH port for QEMU VM
 #   MONITOR_LIVE: path to QEMU monitor socket
-#   FISHER_REPO: path to fisherman Git repository
 #   PAYLOAD_IMAGE: image reference (read from TARGET/payload_ref)
 #   RECIPE_JSON: JSON recipe to install (caller must generate with encryption config)
 #   RECIPE_PATH: destination path for recipe in /tmp on VM
@@ -56,59 +55,20 @@ lib_mount_scratch_disk() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────
-# Composefs Path: shipped fisherman
+# Shipped fisherman (composefs and native bootc paths)
 # ─────────────────────────────────────────────────────────────────────────
 
-lib_run_composefs_install() {
+lib_execute_install() {
 	local recipe_tmp="$1"
 	local recipe_dest="$2"
+	echo "=== Live desktop/session diagnostics ===" >&2
+	$SSH 'sudo journalctl -b --no-pager | grep -Ev "TRACE|xfconf_backend_perchannel" | grep -E "xfwl4|xfce4-session|xfce4-panel|xfdesktop|tuna|ERROR|WARN|PANIC|panic" | tail -n 100' >&2
 	
 	$SCP "${recipe_tmp}" liveuser@127.0.0.1:"${recipe_dest}"
 	echo "Uploaded recipe — running fisherman (takes several minutes)..." >&2
 	$SSH "sudo /usr/local/bin/fisherman ${recipe_dest}"
 }
 
-# ─────────────────────────────────────────────────────────────────────────
-# Ostree Path: bootcDirect (fisherman runs bootc natively)
-# ─────────────────────────────────────────────────────────────────────────
-
-lib_run_bootcdirect_install() {
-	local recipe_tmp="$1"
-	local recipe_dest="$2"
-	
-	echo "Uploaded recipe — building patched fisherman for bootcDirect..." >&2
-	FISHERMAN_BIN=$(mktemp /tmp/fisherman-XXXXXX)
-	trap "rm -f '${recipe_tmp}' '${FISHERMAN_BIN}'" EXIT
-	(cd "${FISHER_REPO}" && CGO_ENABLED=0 go build -o "${FISHERMAN_BIN}" ./cmd/fisherman/)
-	$SCP "${FISHERMAN_BIN}" liveuser@127.0.0.1:/tmp/fisherman
-	$SSH 'chmod +x /tmp/fisherman'
-	echo "Running fisherman (bootcDirect, takes several minutes)..." >&2
-	$SCP "${recipe_tmp}" liveuser@127.0.0.1:"${recipe_dest}"
-	if ! $SSH "sudo /tmp/fisherman ${recipe_dest}"; then
-		echo "=== INSTALL FAILURE DIAGNOSTICS ===" >&2
-		echo "--- dmesg ---" >&2
-		$SSH 'sudo dmesg | tail -n 100' || true
-		echo "--- journalctl ---" >&2
-		$SSH 'sudo journalctl -n 100 --no-pager' || true
-		echo "--- systemd-oomd status ---" >&2
-		$SSH 'sudo systemctl status systemd-oomd --no-pager' || true
-		exit 1
-	fi
-}
-
-# ─────────────────────────────────────────────────────────────────────────
-# Execute Install (dispatches to composefs or bootcDirect)
-# ─────────────────────────────────────────────────────────────────────────
-
-lib_execute_install() {
-	local recipe_tmp="$1"
-	local recipe_dest="$2"
-	if [[ "${COMPOSEFS_BACKEND}" == "true" ]]; then
-		lib_run_composefs_install "${recipe_tmp}" "${recipe_dest}"
-	else
-		lib_run_bootcdirect_install "${recipe_tmp}" "${recipe_dest}"
-	fi
-}
 
 # ─────────────────────────────────────────────────────────────────────────
 # QEMU Monitor Shutdown

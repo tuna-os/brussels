@@ -241,10 +241,6 @@ boot-iso-vnc target:
 #   just luks-boot-qemu-installed xfce-linux  # reboot QEMU into installed disk
 #   just luks-unlock-qemu xfce-linux          # send passphrase via QEMU monitor
 
-# Path to a local fisherman checkout for bootcDirect (ostree) installs; unused
-# on the default composefs path.
-fisher_repo := ""
-
 # QEMU memory (MiB) / vCPUs for the e2e test VMs.
 qemu-mem := "8192"
 qemu-smp := "4"
@@ -380,7 +376,7 @@ luks-boot-qemu-live target:
 
 # Run fisherman LUKS install via SSH into the live QEMU VM.
 luks-install-qemu target:
-    ./scripts/luks-install-qemu.sh "{{target}}" "{{luks-passphrase}}" "{{luks-qemu-ssh-port}}" "{{luks-qemu-monitor-live}}" "{{fisher_repo}}"
+    ./scripts/luks-install-qemu.sh "{{target}}" "{{luks-passphrase}}" "{{luks-qemu-ssh-port}}" "{{luks-qemu-monitor-live}}"
 
 # Boot the installed disk in QEMU (no ISO). Called after luks-install-qemu.
 luks-boot-qemu-installed target:
@@ -502,32 +498,14 @@ plain-test-qemu target installer_channel="stable":
 
 # Run fisherman plain (no-encryption) install via SSH into the live QEMU VM.
 plain-install-qemu target:
-    ./scripts/plain-install-qemu.sh "{{target}}" "{{luks-qemu-ssh-port}}" "{{luks-qemu-monitor-live}}" "{{fisher_repo}}"
+    ./scripts/plain-install-qemu.sh "{{target}}" "{{luks-qemu-ssh-port}}" "{{luks-qemu-monitor-live}}"
 
-# Wait for the installed disk to boot to a ready state. No passphrase to
-# handle here (that's the whole point of the plain path) — just watch serial
-# for the same success/failure markers <target>/src/luks-unlock.py's qemu
-# mode checks for, so a regression here surfaces the same way a LUKS one does.
+# Wait for the same normalized display-manager markers as the LUKS path,
+# then require the strict GUI gate. A serial login prompt alone is not a pass.
 plain-wait-boot target:
     #!/usr/bin/bash
     set -euo pipefail
-    # QEMU creates root-owned serial logs, possibly with mode 0600.
-    echo "Waiting for installed system to boot..."
-    for i in $(seq 1 60); do
-        if sudo grep -qiE "emergency mode|emergency shell" "{{plain-qemu-serial-installed}}" 2>/dev/null; then
-            echo "ERROR: installed system dropped to emergency shell"
-            sudo tail -50 "{{plain-qemu-serial-installed}}" || true
-            exit 1
-        fi
-        if sudo grep -qE "Started gdm\.service|Started GNOME Display Manager|Started gnome-initial-setup" "{{plain-qemu-serial-installed}}" 2>/dev/null; then
-            echo "Installed system booted successfully"
-            sudo python3 "{{target}}/src/luks-unlock.py" wait-live \
-                "{{plain-qemu-monitor-installed}}" "/tmp/plain-screenshot-final.ppm"
-            bash "{{target}}/src/show-screenshot.sh" /tmp/plain-screenshot-final.ppm "Installed boot (plain)" || true
-            exit 0
-        fi
-        sleep 5
-    done
-    echo "ERROR: installed system did not reach a ready state after 5m"
-    sudo tail -50 "{{plain-qemu-serial-installed}}" || true
-    exit 1
+    sudo python3 "{{target}}/src/luks-unlock.py" wait-boot \
+        "{{plain-qemu-monitor-installed}}" "/tmp/plain-screenshot-final.ppm" \
+        "{{plain-qemu-serial-installed}}"
+    bash "{{target}}/src/show-screenshot.sh" /tmp/plain-screenshot-final.ppm "Installed boot (plain)" || true

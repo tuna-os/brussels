@@ -208,6 +208,61 @@ class TestLuksUnlock(unittest.TestCase):
         actual_calls = [(call[0][0], call[1].get("input")) for call in mock_run.call_args_list]
         self.assertEqual(actual_calls, expected_calls)
 
+    # ── Plain installed-boot behavior ────────────────────────────────────────
+
+    @patch("luks_unlock.run_wait_live")
+    def test_run_wait_boot_ansi_gdm_requires_gui(self, wait_live):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as serial:
+            serial.write("[\x1b[0;32m OK \x1b[0m] Started \x1b[0;1;39mgdm.service\x1b[0m - GNOME Display Manager.")
+            serial.flush()
+            luks_unlock.run_wait_boot("/tmp/monitor", "/tmp/screen.ppm", serial.name)
+        wait_live.assert_called_once_with("/tmp/monitor", "/tmp/screen.ppm")
+
+    @patch("luks_unlock.run_wait_live")
+    def test_run_wait_boot_emergency_overrides_display_manager(self, wait_live):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as serial:
+            serial.write("Started gdm.service\nEntering emergency mode.")
+            serial.flush()
+            with self.assertRaises(SystemExit) as result:
+                luks_unlock.run_wait_boot("/tmp/monitor", "/tmp/screen.ppm", serial.name)
+        self.assertEqual(result.exception.code, 1)
+        wait_live.assert_not_called()
+
+    @patch("luks_unlock.run_wait_live", side_effect=SystemExit(1))
+    def test_run_wait_boot_does_not_hide_gui_failure(self, wait_live):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as serial:
+            serial.write("Started gdm.service")
+            serial.flush()
+            with self.assertRaises(SystemExit) as result:
+                luks_unlock.run_wait_boot("/tmp/monitor", "/tmp/screen.ppm", serial.name)
+        self.assertEqual(result.exception.code, 1)
+        wait_live.assert_called_once()
+
+    @patch("luks_unlock.run_wait_live")
+    @patch("time.sleep")
+    @patch("time.time", side_effect=[0, 0, 301])
+    def test_run_wait_boot_login_alone_times_out(self, clock, sleep, wait_live):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as serial:
+            serial.write("brussels-plain-test login: ")
+            serial.flush()
+            with self.assertRaises(SystemExit) as result:
+                luks_unlock.run_wait_boot("/tmp/monitor", "/tmp/screen.ppm", serial.name)
+        self.assertEqual(result.exception.code, 1)
+        wait_live.assert_not_called()
+        sleep.assert_called_once_with(5)
+
+    def test_main_wait_boot_requires_serial_argument(self):
+        with patch("sys.argv", ["luks-unlock.py", "wait-boot", "/tmp/monitor", "/tmp/screen.ppm"]):
+            with self.assertRaises(SystemExit) as result:
+                luks_unlock.main()
+        self.assertEqual(result.exception.code, 1)
+
+    @patch("luks_unlock.run_wait_boot")
+    def test_main_wait_boot_dispatch(self, wait_boot):
+        with patch("sys.argv", ["luks-unlock.py", "wait-boot", "/tmp/monitor", "/tmp/screen.ppm", "/tmp/serial"]):
+            luks_unlock.main()
+        wait_boot.assert_called_once_with("/tmp/monitor", "/tmp/screen.ppm", "/tmp/serial")
+
     # ── main() Routing Tests ───────────────────────────────────────────────────
 
     @patch("sys.exit")

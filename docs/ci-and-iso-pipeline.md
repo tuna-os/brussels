@@ -218,7 +218,7 @@ before the retag after cosign support lands.
 
 | Symptom | Cause | Fix / invariant |
 | --- | --- | --- |
-| Plain installed boot times out, then `tail` reports `Permission denied` (run 39399656661) | QEMU runs under sudo and can create root-owned 0600 serial logs; unprivileged grep hides the read error and never sees readiness or emergency markers | Read live and plain-installed serial logs with sudo, matching QEMU and the LUKS unlock helper; `test_qemu_serial_readers_use_qemu_privileges` guards both readiness and diagnostic reads. |
+| Plain installed boot times out, then `tail` reports `Permission denied` (run 39399656661) | QEMU runs under sudo and can create root-owned 0600 serial logs; unprivileged readers never see readiness or emergency markers | Read live serial logs with sudo. The plain-installed path runs the shared Python serial classifier with sudo, matching QEMU and the LUKS unlock helper. |
 
 The earlier missing `:latest` publication failure is distinct: merged #147
 unblocked the build and #241 restored scheduled publication. The October 20
@@ -229,6 +229,7 @@ failure. This fix does not resolve all guest boot failures.
 
 | Symptom | Cause | Fix / invariant |
 | --- | --- | --- |
+| Plain run 41449240676 installs and reboots, but reports a five-minute boot timeout | ANSI escapes between `Started` and `gdm.service` defeat the raw grep predicate, although GDM started | Reuse `qemu_check_serial` through `wait-boot`, then require the strict GUI gate. A login prompt alone never passes. |
 | Changed-element run 41445803428 fails in `libbluray` fetch with a Dulwich `ValueError` | VideoLAN's Git endpoint returns an Anubis HTML challenge, not Git references | Use the same 1.5.0 release from VideoLAN's official download server, pinned by SHA256. The archive includes `contrib/libudfread`, so no separate Git module is needed. |
 | ISO assembly in PR run 41392561078 fails with `unknown flag: --dest-force-compress-format` | Ubuntu 24.04 supplies Skopeo 1.13.3, which lacks that newer flag | Use supported `--dest-compress-format gzip` and exercise `/usr/bin/skopeo` 1.13.3, not the newer Homebrew binary. |
 | ISO 41333027065 built successfully, but cosign failed with `create bundle file: open : no such file or directory` | cosign 3 ignores deprecated detached signature/certificate output flags and requires a bundle path | Produce and publish `.sigstore.json`; boot-gate before signing or upload. |
@@ -251,6 +252,11 @@ The mount must succeed before the display manager and ready marker.
 A writable live overlay alone does not meet the contract.
 
 Install tests now invoke fisherman directly.
+Both composefs and native bootc paths use the binary shipped in the live ISO.
+Neither path builds fisherman from a local checkout.
+Both scripts reject the removed `fisher_repo` argument.
+Each script shows the journal for the live desktop before install.
+
 We removed the old wrapper that converted hostname failures to success.
 We also removed its changes to unrelated services.
 Qualification must expose any other installer failures.
@@ -290,6 +296,19 @@ The smoke verified all blob hashes and sizes, and extracted the exact root-mount
 A second invocation reused the prepared image without any build output.
 This verifies the transformation, not the TunaOS installation.
 
+Run 41449240676 built both ISOs and completed LUKS E2E with the old published payload.
+It installed, rebooted, unlocked LUKS, and captured the post-unlock desktop.
+The prompt was text, and the desktop still had black regions.
+This does not qualify the final Brussels candidate or its visual appearance.
+
+Plain installation also completed and rebooted.
+GDM had started, but ANSI escapes defeated the raw grep predicate.
+The actual artifact returned `gdm` through the shared classifier under sudo.
+The plain path now uses that classifier through `wait-boot`.
+It still needs the strict GUI gate and rejects a login prompt alone.
+
+PR 264 remains a draft until exact-candidate and visual qualification pass.
+
 ### Desktop appearance and wallpaper defaults
 
 The Brussels wallpaper has an Xfconf system default under
@@ -304,12 +323,15 @@ A real D-Bus session with `xfconf-query` loaded the Brussels path from this file
 It also accepted and retained a user-selected override.
 This checks configuration behavior, not the visual result.
 
-The [earlier live screenshot](https://raw.githubusercontent.com/tuna-os/xfce-linux/ci-screenshots/luks-e2e/41257944665/stable/live-boot.png)
+The [installed screenshot from run 41449240676](https://raw.githubusercontent.com/tuna-os/xfce-linux/ci-screenshots/luks-e2e/41449240676/stable/final-boot.png)
 shows desktop icons but mostly black pixels and fragments of wallpaper.
 It does not prove a healthy desktop or the new Brussels appearance.
+
 The pinned desktop executable contains a fallback path under its developer's
 `/var/home/james/dev/xfce-wayland/install` prefix.
 We did not add a compatibility symlink for that path.
+The inherited binary import still has other compatibility paths for that prefix.
+The desktop is still imported as binaries, not rebuilt from source.
 The new candidate still needs visual and installation qualification.
 
 Live GUI checks fail if the screen remains dark or unstable until the timeout.

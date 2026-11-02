@@ -5,8 +5,8 @@
 
 set -euo pipefail
 
-if [[ $# -lt 5 ]]; then
-	echo "Usage: $0 <target> <luks_passphrase> <ssh_port> <monitor_live_socket> <fisher_repo>" >&2
+if [[ $# -ne 4 ]]; then
+	echo "Usage: $0 <target> <luks_passphrase> <ssh_port> <monitor_live_socket>" >&2
 	exit 1
 fi
 
@@ -14,7 +14,6 @@ TARGET="$1"
 PASSPHRASE="$2"
 SSH_PORT="$3"
 MONITOR_LIVE="$4"
-FISHER_REPO="$5"
 
 DISK="/dev/vda"
 PAYLOAD_IMAGE=$(cat "${TARGET}/payload_ref" | tr -d '[:space:]')
@@ -33,7 +32,7 @@ if [[ "${BOOTLOADER}" == "grub" ]]; then BOOTLOADER="grub2"; fi
 # Determine target filesystem
 FILESYSTEM="btrfs"
 
-# Resolve install image (offline or network)
+# Select the verified source bound to this installation media.
 INSTALL_IMAGE=$(lib_resolve_install_image)
 
 # Mount scratch disk
@@ -50,7 +49,7 @@ if [[ "${COMPOSEFS_BACKEND}" == "true" ]]; then
 else
 	# Ostree path (stable, lts): bootcDirect — fisherman runs bootc natively.
 	# Empty image triggers bootcDirect; targetImgref sets the day-2 rebase ref.
-	printf '{\n  "disk": "%s",\n  "filesystem": "%s",\n  "image": "",\n  "targetImgref": "%s",\n  "composeFsBackend": false,\n  "bootloader": "%s",\n  "hostname": "xfce-linux-luks-test",\n  "encryption": {"type": "luks-passphrase", "passphrase": "%s"},\n  "flatpaks": []\n}\n' \
+	printf '{\n  "disk": "%s",\n  "filesystem": "%s",\n  "image": "",\n  "targetImgref": "%s",\n  "composeFsBackend": false,\n  "bootloader": "%s",\n  "hostname": "brussels-luks-test",\n  "encryption": {"type": "luks-passphrase", "passphrase": "%s"},\n  "flatpaks": []\n}\n' \
 		"${DISK}" "${FILESYSTEM}" "${PAYLOAD_IMAGE}" "${BOOTLOADER}" "${PASSPHRASE}" >"${RECIPE_TMP}"
 fi
 
