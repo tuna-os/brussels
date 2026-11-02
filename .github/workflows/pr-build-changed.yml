@@ -80,15 +80,9 @@ jobs:
           BST_FLAGS: --no-interactive --config /src/buildstream-ci.conf
         run: |
           mkdir -p logs
-          # Bounded: uncached deep deps can exceed a PR budget while the
-          # world rebuild converges; a 124 exit here is inconclusive, not red.
-          rc=0
-          timeout 100m just bst --log-file /src/logs/pr-build.log build ${{ steps.changed.outputs.elements }} || rc=$?
-          if [ "$rc" -eq 124 ]; then
-            echo "::warning::build budget exceeded — inconclusive (cold cache?), not failing the PR"
-            exit 0
-          fi
-          exit $rc
+          # A timeout is not proof that the changed elements build.
+          # Keep the bounded PR job honest; full candidates use multirunner.
+          timeout 100m just bst --log-file /src/logs/pr-build.log build ${{ steps.changed.outputs.elements }}
 
       - uses: actions/upload-artifact@v7
         if: always()
