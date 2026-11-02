@@ -162,6 +162,24 @@ cp "$SCRIPT_DIR/etc/bootc-installer/images.json" /etc/bootc-installer/images.jso
 cp "$SCRIPT_DIR/etc/bootc-installer/recipe.json"  /etc/bootc-installer/recipe.json
 touch /etc/bootc-installer/live-iso-mode
 
+# The live root is a writable overlay over squashfs. Fisherman requires the
+# actual OCI source filesystem to be read-only, not merely backed by squashfs.
+cat > /usr/lib/systemd/system/usr-lib-tunaos-payload.mount << 'PAYLOADEOF'
+[Unit]
+Description=Read-only Brussels installation payload
+Before=display-manager.service live-ready.service
+
+[Mount]
+What=/usr/lib/tunaos/payload
+Where=/usr/lib/tunaos/payload
+Type=none
+Options=bind,ro
+
+[Install]
+RequiredBy=local-fs.target
+PAYLOADEOF
+systemctl enable usr-lib-tunaos-payload.mount
+
 # The frontend catalog and fisherman share the embedded media binding.
 mkdir -p /etc/tuna-installer
 cp "$SCRIPT_DIR/etc/bootc-installer/images.json" /etc/tuna-installer/images.json

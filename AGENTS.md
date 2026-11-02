@@ -78,6 +78,6 @@ Heavy builds should run in CI, not on a laptop.
 - Renaming a required job means updating the branch-protection contexts in
   the same PR.
 - Never wrap a gate in `|| echo` — that's how checks go silently dead.
-- `tests/pytest/test_iso_invariants.py` encodes shipped bug classes; when
-  you fix a CI/ISO bug, add an invariant there and a row to
-  docs/ci-and-iso-pipeline.md.
+- For CI/ISO fixes, add a consumer-visible behavior regression where practical,
+  or record real runtime smoke evidence. Do not add source-text/wiring assertions.
+  Update the troubleshooting record in docs/ci-and-iso-pipeline.md.

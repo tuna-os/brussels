@@ -57,18 +57,15 @@ fi
 # Execute install
 lib_execute_install "${RECIPE_TMP}" "/tmp/luks-recipe.json"
 
-# Patch BLS entries for dual serial+VT console and LUKS unlock
-echo "Patching BLS entries to enable dual serial+VT console and LUKS unlock..." >&2
+# Test instrumentation only: add serial output without repairing boot args.
+echo "Patching BLS entries to enable dual serial+VT console..." >&2
 $SSH 'sudo bash -c "
     set -euo pipefail
     BOOT_PART=\"/dev/vda1\"
-    LUKS_PART=\"/dev/vda2\"
     if ls /dev/vda3 >/dev/null 2>&1; then
         echo \"Detected 3 partitions layout (separate boot partition for GRUB)\"
         BOOT_PART=\"/dev/vda2\"
-        LUKS_PART=\"/dev/vda3\"
     fi
-    LUKS_UUID=\$(cryptsetup luksUUID \"\$LUKS_PART\" 2>/dev/null || echo \"\")
     TMP=\$(mktemp -d)
     trap \"umount \$TMP 2>/dev/null || true; rmdir \$TMP\" EXIT
     mount \"\$BOOT_PART\" \$TMP
@@ -76,11 +73,7 @@ $SSH 'sudo bash -c "
     for entry in \$TMP/loader/entries/*.conf \$TMP/EFI/loader/entries/*.conf; do
         [[ -f \"\$entry\" ]] || continue
         if grep -q \"^options \" \"\$entry\" && ! grep -q \"console=tty0\" \"\$entry\"; then
-            if [[ -n \"\$LUKS_UUID\" ]]; then
-                sed -i \"s|^options .*|& console=tty0 console=ttyS0 rd.luks.name=\${LUKS_UUID}=root|\" \"\$entry\"
-            else
-                sed -i \"s|^options .*|& console=tty0 console=ttyS0|\" \"\$entry\"
-            fi
+            sed -i \"s|^options .*|& console=tty0 console=ttyS0|\" \"\$entry\"
             COUNT=\$((COUNT+1))
             echo \"  patched: \$(basename \$entry)\"
         fi

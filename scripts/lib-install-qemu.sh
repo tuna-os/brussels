@@ -56,7 +56,7 @@ lib_mount_scratch_disk() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────
-# Composefs Path: Podman-based install
+# Composefs Path: shipped fisherman
 # ─────────────────────────────────────────────────────────────────────────
 
 lib_run_composefs_install() {
@@ -65,8 +65,7 @@ lib_run_composefs_install() {
 	
 	$SCP "${recipe_tmp}" liveuser@127.0.0.1:"${recipe_dest}"
 	echo "Uploaded recipe — running fisherman (takes several minutes)..." >&2
-	$SCP "scripts/fisherman-install.sh" liveuser@127.0.0.1:/tmp/fisherman-install.sh
-	$SSH "sudo bash /tmp/fisherman-install.sh ${recipe_dest}"
+	$SSH "sudo /usr/local/bin/fisherman ${recipe_dest}"
 }
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -85,8 +84,7 @@ lib_run_bootcdirect_install() {
 	$SSH 'chmod +x /tmp/fisherman'
 	echo "Running fisherman (bootcDirect, takes several minutes)..." >&2
 	$SCP "${recipe_tmp}" liveuser@127.0.0.1:"${recipe_dest}"
-	$SCP "scripts/fisherman-install.sh" liveuser@127.0.0.1:/tmp/fisherman-install.sh
-	if ! $SSH "sudo FISHERMAN_BIN=/tmp/fisherman bash /tmp/fisherman-install.sh ${recipe_dest}"; then
+	if ! $SSH "sudo /tmp/fisherman ${recipe_dest}"; then
 		echo "=== INSTALL FAILURE DIAGNOSTICS ===" >&2
 		echo "--- dmesg ---" >&2
 		$SSH 'sudo dmesg | tail -n 100' || true

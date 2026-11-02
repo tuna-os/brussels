@@ -186,7 +186,7 @@ skipped job reports success, so each required check always reports. If the
 
 The plain and LUKS install tests build the same ISO and use different install
 paths. A change to their shared inputs (`xfce-linux/`, the justfiles,
-`scripts/lib-install-qemu.sh`, `scripts/fisherman-install.sh`) runs one of
+`scripts/lib-install-qemu.sh`, `scripts/embed-payload.sh`) runs one of
 the two tests. The run number selects the test. Set the repository variable
 `E2E_ROUND_ROBIN_SIZE` to 2 to run both. A change to the install script or
 workflow of one test always runs that test. The two tests run fully on their
@@ -219,13 +219,25 @@ failure. This fix does not resolve all guest boot failures.
 
 | Symptom | Cause | Fix / invariant |
 | --- | --- | --- |
-| ISO 41333027065 built successfully, but cosign failed with `create bundle file: open : no such file or directory` | cosign 3 ignores deprecated detached signature/certificate output flags and requires a bundle path | Produce and publish `.sigstore.json`; boot-gate before signing or upload; `test_iso_uses_sigstore_bundle_after_boot_gate`. |
-| PR 264 plain and LUKS live boots reached the ready marker and GUI, then fisherman refused installation | Old ISO producer embedded a VFS graph but did not provide the required `media-input.json` + read-only OCI source | Embed one immutable OCI layout and bind the generated contract to its actual platform manifest; empty recipe image selects the verified media source; `test_media_embeds_one_immutable_oci_source`. |
+| ISO 41333027065 built successfully, but cosign failed with `create bundle file: open : no such file or directory` | cosign 3 ignores deprecated detached signature/certificate output flags and requires a bundle path | Produce and publish `.sigstore.json`; boot-gate before signing or upload. |
+| PR 264 plain and LUKS live boots reached the ready marker and GUI, then fisherman refused installation | Old ISO producer embedded a VFS graph but did not provide the required `media-input.json` + read-only OCI source | Embed one immutable OCI layout and bind the generated contract to its actual platform manifest; empty recipe image selects the verified media source. |
 
 Local producer smoke copied the real image
 `sha256:84594ac69abd7c8ac953d4588d7e92a078bef8d36991e8ade7dcd8a558d3d7da`
 and verified every embedded blob's size and SHA256 (3,318,107,811 bytes).
 This verifies media assembly, not guest boot or installation.
+
+The same generated media passed fisherman's actual strict
+`PreflightBoundOCIMediaInput` at revision
+`8f0d194b5d024361e7d1ecb4e2c4c15fec0b9e66`, built from upstream source.
+The smoke used a private mount namespace with `mount -o bind,ro`; `findmnt`
+reported read-only and a write failed with `Read-only file system`.
+Live media installs the same required read-only bind mount before the display
+manager and ready marker: a writable live overlay alone is not sufficient.
+
+Install tests now invoke fisherman directly. The old wrapper that converted
+hostname failures to success and patched unrelated installed services is removed.
+Any remaining installer failure must be fixed, not hidden by qualification.
 
 For exact-candidate qualification, manually dispatch `build-multirunner.yml`
 on the branch with `push_image=true`. Only its SHA tag is published.
