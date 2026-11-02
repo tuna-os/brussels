@@ -137,4 +137,18 @@ It passes `sha256:<actual digest>` to cosign's supported digest input.
 The workflow identity, OIDC issuer and transparency checks remain mandatory.
 README.md shows the equivalent command for a download.
 CI also checks that the same bundle rejects a truncated copy of the ISO.
-The full-size OIDC proof must pass before this repair qualifies the ISO.
+
+[Run 41488782518](https://github.com/tuna-os/xfce-linux/actions/runs/41488782518)
+built and booted an actual 6,562,289,664-byte ISO on source `397c86d`.
+The pinned signer completed in 11.57 seconds.
+Cosign 3.0.6 verified the actual streamed hash in 4.04 seconds.
+It rejected the first 1 MiB of that ISO with `artifact does not match digest`.
+CI retained the original ISO, standard v0.3 MessageSignature bundle and checksum as artifacts.
+
+The SHA256 of the signed ISO is
+`4142f4f91ac7088687bf52b033e3f960cd3338fcc1053ed617e43d614a4e980a`.
+Verification used the exact `build-iso.yml@refs/heads/codename/brussels` identity,
+the GitHub OIDC issuer and Rekor proof.
+The producer recorded source `397c86d`, old image digest `84594ac6`
+and old revision `7844080` in the uploaded evidence.
+This proves that the repaired signer works, not that a new Brussels image or release qualifies.
