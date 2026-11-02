@@ -22,6 +22,10 @@ This is original artwork, not the official regional emblem.
 The wordmark credits Xfce as the desktop upstream and TunaOS as the publisher.
 We do not use or alter the official Xfce logo or claim official affiliation.
 The artwork does not depict the Atomium.
+
+Letters use glyph paths from DejaVu Sans, with its license in each SVG.
+The SVGs do not need fonts on the machine that displays them.
+
 This is not yet a qualified production distribution.
 Runtime checks must demonstrate each candidate's boot and install behavior.
 New iris artwork still needs exact-image LUKS and visual qualification.

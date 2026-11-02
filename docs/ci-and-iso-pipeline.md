@@ -360,6 +360,10 @@ The icon, wordmark and wallpaper share the same iris paths.
 Native SVG renders and wordmark OCR passed.
 LUKS tests have not yet verified this artwork in a built image.
 
+The wordmark and wallpaper use glyph paths with the DejaVu license inside each SVG.
+The SVG previews now show the product name and Xfce credit without installed fonts.
+A native render with an empty Fontconfig setup also passed OCR for both assets.
+
 The Brussels wallpaper has an Xfconf system default under
 `files/etc-config/usr/etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml`.
 It uses the supported format with numeric monitors.

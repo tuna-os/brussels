@@ -54,6 +54,8 @@ Heavy builds should run in CI, not on a laptop.
 - Brussels uses an original botanical yellow iris, not the official regional
   emblem or an altered Xfce logo. Keep icon, wordmark, wallpaper SVG/PNG and
   expected visual assets consistent; the wordmark must credit Xfce and TunaOS.
+  Keep visible letters as glyph paths, not font-dependent `<text>` nodes.
+  Preserve the embedded DejaVu license in assets that use its glyphs.
 - Live media embeds `/usr/lib/tunaos/payload` as a read-only OCI layout.
   `scripts/embed-payload.sh` records the actual platform manifest/config in
   `/etc/bootc-installer/media-input.json`; fisherman must verify it before
