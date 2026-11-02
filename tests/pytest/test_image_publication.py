@@ -184,6 +184,17 @@ def test_qualification_requires_exact_source_revision_and_digest(tmp_path, misma
         record[mismatch] = "not-the-qualified-candidate"
     evidence = tmp_path / "evidence.json"
     evidence.write_text(json.dumps(record))
+    visual = tmp_path / "journey.json"
+    visual.write_text(json.dumps({
+        "branding_qualified": True,
+        "proof_class": "observer-assisted",
+        "source_commit": sha,
+        "payload_image": image,
+        "observations": {
+            "installed": {"boot_id": "installed-boot"},
+            "live": {"boot_id": "live-boot"},
+        },
+    }))
     env = tool_env(tmp_path, "gh", '''if [ "$1" = api ]; then
   case "$2" in
     */11) workflow=build-iso.yml ;;
@@ -195,10 +206,14 @@ def test_qualification_requires_exact_source_revision_and_digest(tmp_path, misma
 else
   test "$1" = run && test "$2" = download
   mkdir -p "$7"
-  cp "$EVIDENCE" "$7/qualification.json"
+  if [ "$5" = brussels-visual-stable ]; then
+    cp "$VISUAL" "$7/journey.json"
+  else
+    cp "$EVIDENCE" "$7/qualification.json"
+  fi
 fi
 ''')
-    env.update(SHA=sha, EVIDENCE=str(evidence))
+    env.update(SHA=sha, EVIDENCE=str(evidence), VISUAL=str(visual))
     result = run_script("verify-qualified-payload.sh", sha, image, "11", "12", "13", env=env)
     assert result.returncode == (1 if mismatch else 0), result.stderr
 

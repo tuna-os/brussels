@@ -25,3 +25,9 @@ for index in 0 1 2; do
         exit 1
     }
 done
+gh run download "$5" --name brussels-visual-stable --dir "$tmp/visual"
+jq -e --arg sha "$sha" --arg image "$image" \
+    '.branding_qualified == true and .proof_class == "observer-assisted" and
+     .source_commit == $sha and .payload_image == $image and
+     .observations.installed.boot_id != .observations.live.boot_id' \
+    "$tmp/visual/journey.json" >/dev/null

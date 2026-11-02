@@ -88,7 +88,8 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y \
             podman buildah skopeo jq mtools xorriso squashfs-tools \
-            qemu-system-x86 qemu-utils ovmf socat sshpass imagemagick -qq
+            qemu-system-x86 qemu-utils ovmf socat sshpass imagemagick \
+            tesseract-ocr tesseract-ocr-eng python3-pil python3-yaml librsvg2-bin -qq
 
       - name: Log in to GHCR
         run: |
@@ -132,11 +133,28 @@ jobs:
 
       - name: Run LUKS end-to-end test
         id: luks_test
+        env:
+          # Pull requests must pass the same strict branding/OCR contract as
+          # manually dispatched runs before their LUKS images are qualified.
+          BRUSSELS_VISUAL_QUALIFY: '1'
         run: |
           START=$(date +%s)
           just output_dir=output luks-test-qemu "$TARGET" ${{ matrix.installer_channel }}
           echo "duration=$(( $(date +%s) - START ))" >> "$GITHUB_OUTPUT"
         continue-on-error: true
+
+      - name: Retain native visual evidence
+        if: ${{ always() && steps.luks_test.outcome != 'skipped' }}
+        run: sudo chown -R "$USER:$(id -gn)" output/brussels-visual
+
+      - name: Upload native visual evidence
+        if: ${{ always() && steps.luks_test.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: brussels-visual-${{ matrix.installer_channel }}
+          path: output/brussels-visual/
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Convert and publish screenshots
         if: always()

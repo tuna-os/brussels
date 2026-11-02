@@ -15,7 +15,8 @@ debug := "0"
 installer_channel := "stable"
 
 # LUKS passphrase used by luks-install for testing.
-luks-passphrase := "testpassphrase"
+luks-passphrase := env("BRUSSELS_LUKS_PASSPHRASE", "testpassphrase")
+export BRUSSELS_LUKS_PASSPHRASE := luks-passphrase
 
 # Squashfs compression preset:
 #   fast    (default) — zstd level 3,  128K blocks — quick local builds/CI
@@ -284,14 +285,9 @@ e2e target:
 luks-test-qemu target installer_channel="stable":
     #!/usr/bin/bash
     set -euo pipefail
-    DISK="/var/tmp/xfce-linux-luks-install-{{target}}-{{installer_channel}}.qcow2"
-    SCRATCH="/var/tmp/xfce-linux-luks-scratch-{{target}}-{{installer_channel}}.img"
-    just luks-qemu-disk="$DISK" luks-scratch-disk="$SCRATCH" luks-boot-qemu-live {{target}}
-    just luks-qemu-ssh-port={{luks-qemu-ssh-port}} luks-install-qemu {{target}}
-    just luks-qemu-disk="$DISK" luks-scratch-disk="$SCRATCH" luks-boot-qemu-installed {{target}}
-    just luks-qemu-monitor-installed={{luks-qemu-monitor-installed}} \
-         luks-qemu-serial-installed={{luks-qemu-serial-installed}} \
-         luks-unlock-qemu {{target}}
+    sudo --preserve-env=BRUSSELS_LUKS_PASSPHRASE,BRUSSELS_VISUAL_QUALIFY,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT \
+        /usr/bin/python3 scripts/brussels-visual.py "{{target}}" "{{installer_channel}}" \
+        --iso-directory "{{output_dir}}" --output "{{output_dir}}/brussels-visual"
 
 # Boot the live ISO in QEMU (daemonized) with a blank install disk attached.
 luks-boot-qemu-live target:
@@ -383,7 +379,7 @@ luks-boot-qemu-live target:
 
 # Run fisherman LUKS install via SSH into the live QEMU VM.
 luks-install-qemu target:
-    ./scripts/luks-install-qemu.sh "{{target}}" "{{luks-passphrase}}" "{{luks-qemu-ssh-port}}" "{{luks-qemu-monitor-live}}"
+    @./scripts/luks-install-qemu.sh "{{target}}" "{{luks-qemu-ssh-port}}" "{{luks-qemu-monitor-live}}"
 
 # Boot the installed disk in QEMU (no ISO). Called after luks-install-qemu.
 luks-boot-qemu-installed target:
@@ -450,22 +446,6 @@ luks-boot-qemu-installed target:
         [[ -S "{{luks-qemu-monitor-installed}}" ]] && break
         sleep 2
     done
-
-# Send LUKS passphrase to installed QEMU VM via monitor screendump + sendkey.
-# Polls screendump size to detect Plymouth takeover, then injects keystrokes.
-luks-unlock-qemu target:
-    #!/usr/bin/bash
-    set -euo pipefail
-    PASSPHRASE="{{luks-passphrase}}"
-    echo "Unlocking LUKS on installed QEMU VM..."
-    sudo python3 "{{target}}/src/luks-unlock.py" qemu \
-        "{{luks-qemu-monitor-installed}}" \
-        "$PASSPHRASE" \
-        "{{luks-qemu-serial-installed}}"
-
-    # Show key screenshots inline for terminals that support it (Kitty, iTerm2)
-    bash "{{target}}/src/show-screenshot.sh" /tmp/luks-screenshot-plymouth.ppm "Plymouth prompt" || true
-    bash "{{target}}/src/show-screenshot.sh" /tmp/luks-screenshot-final.ppm "Final boot" || true
 
 # ── Plain (no-encryption) install e2e ──────────────────────────────────────
 # This is the install path most users actually run and (until this) had zero

@@ -47,7 +47,7 @@ jobs:
   multirunner:
     # Stable only reuses qualified immutable images through promote/rollback.
     if: github.ref != 'refs/heads/stable'
-    uses: tuna-os/bst-ci/.github/workflows/multirunner-build.yml@564c18f070c85ff73d070eb9f3d4bd436d82efb8
+    uses: tuna-os/bst-ci/.github/workflows/multirunner-build.yml@89c7d20d6e113533278158d7e5df64f663770e49
     permissions:
       contents: read
       packages: write

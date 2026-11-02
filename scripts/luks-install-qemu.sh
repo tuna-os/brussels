@@ -5,15 +5,15 @@
 
 set -euo pipefail
 
-if [[ $# -ne 4 ]]; then
-	echo "Usage: $0 <target> <luks_passphrase> <ssh_port> <monitor_live_socket>" >&2
+if [[ $# -ne 3 ]]; then
+	echo "Usage: $0 <target> <ssh_port> <monitor_live_socket>" >&2
 	exit 1
 fi
 
 TARGET="$1"
-PASSPHRASE="$2"
-SSH_PORT="$3"
-MONITOR_LIVE="$4"
+PASSPHRASE="${BRUSSELS_LUKS_PASSPHRASE:?The native adapter must provide the private test passphrase}"
+SSH_PORT="$2"
+MONITOR_LIVE="$3"
 
 DISK="/dev/vda"
 PAYLOAD_IMAGE=$(cat "${TARGET}/payload_ref" | tr -d '[:space:]')

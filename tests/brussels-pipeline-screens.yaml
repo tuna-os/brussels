@@ -1,0 +1,78 @@
+# Consumer of tuna-os/tunaOS contract v1 at 0b577a9.
+# Desktop furniture was measured on real 41488761029 frames. Iris/mark/About
+# geometry is source-derived and remains unqualified until exact-image replay.
+schema_version: 1
+crash_text: &crash
+  - kernel panic
+  - emergency shell
+  - no bootable device
+checkpoints:
+  - id: live-desktop
+    phase: live
+    frames: [live-desktop]
+    required: true
+    keywords: [applications, home, trash]
+    forbid: *crash
+    regions:
+      - id: brussels-name
+        box: [0.59, 0.80, 0.37, 0.15]
+        keywords: [brussels]
+      - id: iris-wallpaper
+        box: [0.62, 0.20, 0.32, 0.50]
+        artwork:
+          asset: branding/brussels/brussels-wallpaper.png
+          asset_box: [0.608, 0.20, 0.288, 0.50]
+          max_distance: 10
+  - id: installer-welcome
+    phase: live
+    frames: [walkthrough-xfce-00]
+    required: true
+    keywords: [welcome, get started]
+    distinct_from: [live-desktop]
+    forbid: *crash
+    regions:
+      - id: installer-product
+        box: [0.10, 0.10, 0.80, 0.65]
+        keywords: [brussels]
+  - id: luks-before-secret
+    phase: installed
+    frames: [luks-before-secret]
+    required: true
+    keywords: [passphrase, password]
+    distinct_from: [live-desktop, installer-welcome]
+    forbid: *crash
+    regions:
+      - id: iris-watermark
+        box: [0.35, 0.55, 0.30, 0.40]
+        artwork:
+          asset: branding/brussels/brussels-logo.svg
+          max_distance: 4
+          background: '#000000'
+  - id: installed-desktop
+    phase: installed
+    frames: [installed-desktop]
+    required: true
+    keywords: [applications, home, trash]
+    distinct_from: [live-desktop, installer-welcome, luks-before-secret]
+    forbid: [kernel panic, emergency shell, enter passphrase, enter password]
+    regions:
+      - id: brussels-name
+        box: [0.59, 0.80, 0.37, 0.15]
+        keywords: [brussels]
+      - id: iris-wallpaper
+        box: [0.62, 0.20, 0.32, 0.50]
+        artwork:
+          asset: branding/brussels/brussels-wallpaper.png
+          asset_box: [0.608, 0.20, 0.288, 0.50]
+          max_distance: 10
+  - id: installed-about
+    phase: installed
+    frames: [installed-about]
+    required: true
+    keywords: [os name, operating system]
+    distinct_from: [installed-desktop]
+    forbid: *crash
+    regions:
+      - id: native-about-product
+        box: [0.25, 0.15, 0.50, 0.60]
+        keywords: [brussels]
