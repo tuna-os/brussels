@@ -194,7 +194,7 @@ cat > /etc/xdg/autostart/tuna-installer.desktop << DTEOF
 [Desktop Entry]
 Name=Brussels Installer
 Exec=flatpak run ${INSTALLER_APP_ID}
-Icon=system-software-install
+Icon=brussels-logo
 Terminal=false
 Type=Application
 NotShowIn=KDE;
@@ -206,7 +206,7 @@ cat > /usr/share/applications/xfce-linux-installer.desktop << DTEOF
 Name=Brussels Installer
 Comment=Install Brussels by TunaOS to your computer
 Exec=flatpak run ${INSTALLER_APP_ID}
-Icon=system-software-install
+Icon=brussels-logo
 Type=Application
 Categories=System;
 NoDisplay=false

@@ -361,6 +361,9 @@ name and creates a `last-image` property for each workspace.
 Existing user properties take precedence.
 This avoids a QEMU-specific connector name or a developer-path symlink.
 
+Live installer entries use the Brussels logo by default, not a generic installation icon.
+The image's `os-release` and Plymouth defaults also select Brussels identity and artwork.
+
 A real D-Bus session with `xfconf-query` loaded the Brussels path from this file.
 It also accepted and retained a user-selected override.
 This checks configuration behavior, not the visual result.
