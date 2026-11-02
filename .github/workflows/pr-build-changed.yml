@@ -84,6 +84,20 @@ jobs:
           # Keep the bounded PR job honest; full candidates use multirunner.
           timeout 100m just bst --log-file /src/logs/pr-build.log build ${{ steps.changed.outputs.elements }}
 
+      - name: Retain detailed BuildStream logs
+        if: always() && steps.changed.outputs.elements != ''
+        run: |
+          # This runner owns these builders; stop leftovers before the snapshot.
+          builder_ids=$(podman ps -q --filter "ancestor=${BST2_IMAGE}")
+          if [[ -n "$builder_ids" ]]; then
+            mapfile -t builders <<< "$builder_ids"
+            podman stop --time 30 "${builders[@]}"
+          fi
+          if [[ -d "$HOME/.cache/buildstream/logs" ]]; then
+            mkdir -p logs/buildstream
+            cp -a "$HOME/.cache/buildstream/logs/." logs/buildstream/
+          fi
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:

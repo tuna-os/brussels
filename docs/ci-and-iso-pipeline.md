@@ -279,6 +279,20 @@ The Brussels identity does not rename `project.conf` or the
 Shared uploads stop containers that remain active before they archive the CAS.
 They omit daemon logs and sockets; a separate artifact contains the full build logs.
 
+### Bounded PR build evidence
+
+Run 41449241146 hit its 100-minute budget with exit 124.
+Console output stopped at 13:15:33; the job timed out at 14:47:41.
+It did not identify a compiler failure.
+The artifact had only the console log.
+
+PR jobs now stop their builders before they copy logs.
+The archive keeps logs for each element and for `_casd`.
+A real smoke ran the actual step with the pinned builder.
+It copied eight files, including logs from the CAS daemon.
+The leaf log matched its source by SHA256.
+This checks retention of logs, not a complete OS build.
+
 ### Composefs source preparation
 
 The producer follows dakota-iso's source-only preparation contract.
@@ -307,6 +321,10 @@ The actual artifact returned `gdm` through the shared classifier under sudo.
 The plain path now uses that classifier through `wait-boot`.
 It still needs the strict GUI gate and rejects a login prompt alone.
 
+Frozen source `eb22bb3` then passed plain run 41456541509 and LUKS run 41456542014.
+Both used the old immutable payload, not the new Brussels image.
+The checks for GDM and the GUI passed after reboot.
+
 PR 264 remains a draft until exact-candidate and visual qualification pass.
 
 ### Desktop appearance and wallpaper defaults
@@ -323,9 +341,24 @@ A real D-Bus session with `xfconf-query` loaded the Brussels path from this file
 It also accepted and retained a user-selected override.
 This checks configuration behavior, not the visual result.
 
-The [installed screenshot from run 41449240676](https://raw.githubusercontent.com/tuna-os/xfce-linux/ci-screenshots/luks-e2e/41449240676/stable/final-boot.png)
+The [earlier installed screenshot from run 41449240676](https://raw.githubusercontent.com/tuna-os/xfce-linux/ci-screenshots/luks-e2e/41449240676/stable/final-boot.png)
 shows desktop icons but mostly black pixels and fragments of wallpaper.
 It does not prove a healthy desktop or the new Brussels appearance.
+
+Headless QEMU omitted an explicit graphics device.
+Its journal showed llvmpipe and unsupported DRM features.
+The existing VNC recipe used `virtio-vga`.
+Headless live, installed, serial and production boots now select that same device.
+
+Plain run 41461329467 used the same immutable payload and passed.
+Its [inspected image](https://raw.githubusercontent.com/tuna-os/xfce-linux/ci-screenshots/plain-e2e/41461329467/stable/final-boot.png)
+shows the full wallpaper, icons and both panels, without the black regions.
+This checks the VM graphics setup, not the new Brussels appearance.
+The compositor source and renderer policy have not changed.
+
+The hosted runner for LUKS run 41461329227 lost its server connection.
+GitHub retained no logs or artifacts from that try.
+There is no guest result from that try.
 
 The pinned desktop executable contains a fallback path under its developer's
 `/var/home/james/dev/xfce-wayland/install` prefix.

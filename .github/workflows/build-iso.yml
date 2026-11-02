@@ -176,6 +176,16 @@ jobs:
           cosign sign-blob --yes --bundle "${ISO}.sigstore.json" "$ISO"
           echo "bundle_path=${ISO}.sigstore.json" >> "$GITHUB_OUTPUT"
 
+      - name: Verify ISO signature bundle
+        if: ${{ steps.sign.outcome == 'success' }}
+        env:
+          EXPECTED_IDENTITY: ${{ github.server_url }}/${{ github.workflow_ref }}
+        run: |
+          cosign verify-blob --bundle "${{ steps.sign.outputs.bundle_path }}" \
+            --certificate-identity "$EXPECTED_IDENTITY" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "${{ steps.iso.outputs.path }}"
+
       - name: Upload ISO to Cloudflare R2
         if: ${{ inputs.skip_upload != true && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') }}
         env:
