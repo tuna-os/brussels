@@ -287,7 +287,9 @@ Architecture and configuration participate in cache keys.
 The Brussels identity does not rename `project.conf` or the
 `cache-xfce-linux-*` registry namespaces.
 
-Shared uploads stop containers that remain active before they archive the CAS.
+Shared uploads stop leftover builders before they archive the CAS.
+The pinned image and actual workspace mounted at `/src` identify this job's containers.
+Builders for another workspace remain active.
 They omit daemon logs and sockets; a separate artifact contains the full build logs.
 
 ### Bounded PR build evidence
