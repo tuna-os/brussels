@@ -7,17 +7,24 @@ Brussels is part of [TunaOS](https://tunaos.org). It builds on GNOME OS,
 freedesktop-sdk, Xfce, and xfwl4; ISO infrastructure follows
 projectbluefin/dakota and dakota-iso. Credit belongs to those upstream projects.
 
-The repository, BuildStream project identity, and published image remain
-`tuna-os/xfce-linux` to preserve consumers and warm build caches.
+The repository is `tuna-os/brussels`.
+Its BuildStream project and published image keep `xfce-linux` to preserve consumers and warm build caches.
 The Brussels name recalls the Xfce Foundation launch:
 FOSDEM in Brussels in 2011
 ([upstream announcement](https://blog.xfce.org/2011/02/xfce-foundation-e-v-launched-at-fosdem/)).
 
 ![Brussels by TunaOS wordmark](branding/brussels/xfce-linux-wordmark.svg)
 
-Brussels artwork is original TunaOS work, not artwork from the Xfce Foundation.
+Our iris is an original yellow flower that recalls the Brussels region.
+Its petals and sword leaves replace the earlier abstract arches.
+This is original artwork, not the official regional emblem.
+
+The wordmark credits Xfce as the desktop upstream and TunaOS as the publisher.
+We do not use or alter the official Xfce logo or claim official affiliation.
+The artwork does not depict the Atomium.
 This is not yet a qualified production distribution.
 Runtime checks must demonstrate each candidate's boot and install behavior.
+New iris artwork still needs exact-image LUKS and visual qualification.
 
 ![Brussels desktop wallpaper preview](branding/brussels/brussels-wallpaper.png)
 

@@ -353,6 +353,13 @@ PR 264 remains a draft until exact-candidate and visual qualification pass.
 
 ### Desktop appearance and wallpaper defaults
 
+The current source artwork uses an original yellow iris with sword leaves.
+It replaces the abstract arches and credits Xfce and TunaOS in the wordmark.
+It does not copy the official regional emblem, Xfce logo or Atomium.
+The icon, wordmark and wallpaper share the same iris paths.
+Native SVG renders and wordmark OCR passed.
+LUKS tests have not yet verified this artwork in a built image.
+
 The Brussels wallpaper has an Xfconf system default under
 `files/etc-config/usr/etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml`.
 It uses the supported format with numeric monitors.

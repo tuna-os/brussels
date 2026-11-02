@@ -51,6 +51,9 @@ Heavy builds should run in CI, not on a laptop.
 - Plymouth: GNOME OS supplies the bgrt/spinner theme.
   `elements/xfce-linux/plymouth-theme.bst` installs original Brussels artwork;
   retain its runtime dependency on the GNOME theme for staging order.
+- Brussels uses an original botanical yellow iris, not the official regional
+  emblem or an altered Xfce logo. Keep icon, wordmark, wallpaper SVG/PNG and
+  expected visual assets consistent; the wordmark must credit Xfce and TunaOS.
 - Live media embeds `/usr/lib/tunaos/payload` as a read-only OCI layout.
   `scripts/embed-payload.sh` records the actual platform manifest/config in
   `/etc/bootc-installer/media-input.json`; fisherman must verify it before

@@ -1,21 +1,66 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
-  <title id="title">Brussels desktop wallpaper</title>
-  <desc id="desc">An abstract city at dusk, with warm art-nouveau arches and deep blue-green forms.</desc>
+  <title id="title">Brussels — iris at the water edge</title>
+  <desc id="desc">An original botanical yellow iris and sword leaves over deep blue-green water. The iris recalls the Brussels region without copying its official emblem. Brussels is an independent TunaOS desktop built with Xfce.</desc>
   <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#122638"/><stop offset=".56" stop-color="#33545c"/><stop offset="1" stop-color="#996c60"/></linearGradient>
-    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ffe0ad"/><stop offset="1" stop-color="#e89a66"/></linearGradient>
-    <linearGradient id="arch" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f0c48c" stop-opacity=".65"/><stop offset="1" stop-color="#f6dcc0" stop-opacity=".13"/></linearGradient>
+    <linearGradient id="field" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#102c40" />
+      <stop offset="1" stop-color="#23535b" />
+    </linearGradient>
+    <linearGradient id="petal" x1="0" y1="0" x2=".7" y2="1">
+      <stop stop-color="#fff2b6" />
+      <stop offset=".48" stop-color="#f6ce62" />
+      <stop offset="1" stop-color="#d99b34" />
+    </linearGradient>
+    <linearGradient id="fall" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#ffe69b" />
+      <stop offset="1" stop-color="#e6ae43" />
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#102739" />
+      <stop offset=".6" stop-color="#214951" />
+      <stop offset="1" stop-color="#386467" />
+    </linearGradient>
   </defs>
-  <path fill="url(#sky)" d="M0 0h1920v1080H0z"/>
-  <circle cx="1395" cy="364" r="248" fill="#f0b47b" fill-opacity=".09"/>
-  <circle cx="1395" cy="364" r="116" fill="url(#sun)" fill-opacity=".92"/>
-  <path d="M0 770q380-130 715 8t666-5q298-106 539-20v327H0z" fill="#1a3545" fill-opacity=".66"/>
-  <path d="M194 1080V619a246 246 0 0 1 492 0v461" fill="none" stroke="url(#arch)" stroke-width="42"/>
-  <path d="M256 1080V639a184 184 0 0 1 368 0v441" fill="none" stroke="#f2dbc1" stroke-opacity=".18" stroke-width="4"/>
-  <path d="M766 1080V748a173 173 0 0 1 346 0v332" fill="none" stroke="#e8bd91" stroke-opacity=".42" stroke-width="34"/>
-  <path d="M816 1080V765a123 123 0 0 1 246 0v315" fill="none" stroke="#f5e0c3" stroke-opacity=".17" stroke-width="4"/>
-  <path d="M1190 828h182v252h-182zm212-93h158v345h-158zm186 118h168v227h-168z" fill="#172d3b" fill-opacity=".7"/>
-  <path d="M1190 828h182v18h-182zm212-93h158v18h-158zm186 118h168v18h-168z" fill="#d89c70" fill-opacity=".8"/>
-  <g fill="#f1c38c" fill-opacity=".72"><rect x="1222" y="877" width="18" height="38" rx="8"/><rect x="1270" y="877" width="18" height="38" rx="8"/><rect x="1435" y="779" width="17" height="34" rx="8"/><rect x="1480" y="779" width="17" height="34" rx="8"/><rect x="1630" y="875" width="18" height="38" rx="8"/><rect x="1678" y="875" width="18" height="38" rx="8"/></g>
-  <path d="M0 945q345-70 650 10t628 0q323-82 642-2v127H0z" fill="#112534" fill-opacity=".78"/>
+  <rect width="1920" height="1080" fill="url(#water)" />
+  <ellipse cx="1460" cy="390" rx="490" ry="440" fill="#aac0a1" opacity=".055" />
+  <path d="M0 725c385-110 660 82 1000-4s615-134 920-21v380H0Z" fill="#0f2b3d" opacity=".47" />
+  <path d="M0 875c410-85 705 62 1045-4s569-40 875 10v199H0Z" fill="#102a3b" opacity=".52" />
+  <path d="M887 1080c50-198 130-345 242-441-55 189-117 332-190 441Zm172 0c-5-255-51-398-109-539 125 140 172 319 156 539Zm471 0c49-198 142-361 290-485-85 209-177 372-248 485Z" fill="#739a81" opacity=".14" />
+  <g transform="translate(770 430) scale(2.05)" opacity=".20">
+    <g>
+      <path d="M128 226c-4-39-3-70 0-105" fill="none" stroke="#81aa83" stroke-width="7" stroke-linecap="round" />
+      <path d="M124 226C96 209 82 177 80 149c25 20 39 43 44 77Z" fill="#679a78" />
+      <path d="M132 226c25-23 42-57 46-91-28 24-42 55-46 91Z" fill="#a0b77e" />
+      <path d="M128 119c-20-24-38-36-53-31-8-19-7-34 4-41 24 2 42 28 49 72Z" fill="url(#petal)" />
+      <path d="M128 119c20-24 38-36 53-31 8-19 7-34-4-41-24 2-42 28-49 72Z" fill="url(#petal)" />
+      <path d="M128 119c-17-26-27-57-16-77 5-9 12-15 16-18 4 3 11 9 16 18 11 20 1 51-16 77Z" fill="url(#petal)" />
+      <path d="M128 116c-24-13-54-13-74 4-7 6-12 15-13 24 15 15 34 18 51 10 20-9 29-24 36-38Z" fill="url(#fall)" />
+      <path d="M128 116c24-13 54-13 74 4 7 6 12 15 13 24-15 15-34 18-51 10-20-9-29-24-36-38Z" fill="url(#fall)" />
+      <path d="M128 114c-12 13-20 27-17 44 2 10 9 18 17 24 8-6 15-14 17-24 3-17-5-31-17-44Z" fill="url(#fall)" />
+      <g fill="none" stroke="#a8732d" stroke-width="2.5" stroke-linecap="round" opacity=".75">
+        <path d="M128 56v51M90 71c12 10 22 23 29 39m47-39c-12 10-22 23-29 39M65 138c21-1 39-8 52-17m74 17c-21-1-39-8-52-17m-11 39v-28" />
+      </g>
+      <path d="M119 119q9-13 18 0l-9 13Z" fill="#f9e6a1" />
+    </g>
+  </g>
+  <g transform="translate(1070 130) scale(3.1)" opacity="1">
+    <g>
+      <path d="M128 226c-4-39-3-70 0-105" fill="none" stroke="#81aa83" stroke-width="7" stroke-linecap="round" />
+      <path d="M124 226C96 209 82 177 80 149c25 20 39 43 44 77Z" fill="#679a78" />
+      <path d="M132 226c25-23 42-57 46-91-28 24-42 55-46 91Z" fill="#a0b77e" />
+      <path d="M128 119c-20-24-38-36-53-31-8-19-7-34 4-41 24 2 42 28 49 72Z" fill="url(#petal)" />
+      <path d="M128 119c20-24 38-36 53-31 8-19 7-34-4-41-24 2-42 28-49 72Z" fill="url(#petal)" />
+      <path d="M128 119c-17-26-27-57-16-77 5-9 12-15 16-18 4 3 11 9 16 18 11 20 1 51-16 77Z" fill="url(#petal)" />
+      <path d="M128 116c-24-13-54-13-74 4-7 6-12 15-13 24 15 15 34 18 51 10 20-9 29-24 36-38Z" fill="url(#fall)" />
+      <path d="M128 116c24-13 54-13 74 4 7 6 12 15 13 24-15 15-34 18-51 10-20-9-29-24-36-38Z" fill="url(#fall)" />
+      <path d="M128 114c-12 13-20 27-17 44 2 10 9 18 17 24 8-6 15-14 17-24 3-17-5-31-17-44Z" fill="url(#fall)" />
+      <g fill="none" stroke="#a8732d" stroke-width="2.5" stroke-linecap="round" opacity=".75">
+        <path d="M128 56v51M90 71c12 10 22 23 29 39m47-39c-12 10-22 23-29 39M65 138c21-1 39-8 52-17m74 17c-21-1-39-8-52-17m-11 39v-28" />
+      </g>
+      <path d="M119 119q9-13 18 0l-9 13Z" fill="#f9e6a1" />
+    </g>
+  </g>
+  <path d="M0 1004c360-39 753 39 1167-4s569-12 753 9v71H0Z" fill="#102738" opacity=".69" />
+  <text x="1190" y="944" fill="#f5dc9e" font-family="sans-serif" font-size="47" font-weight="600" letter-spacing="7">BRUSSELS</text>
+  <text x="1194" y="984" fill="#b4cbc0" font-family="sans-serif" font-size="21" letter-spacing="3">WITH XFCE · BY TUNAOS</text>
 </svg>
