@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "mode": "proposal-only",
+  "metric": "job-duration-minutes",
+  "history": {
+    "branch": "main",
+    "events": [
+      "push",
+      "schedule",
+      "workflow_dispatch"
+    ],
+    "conclusion": "success",
+    "lookbackDays": 30,
+    "minimumSamplesPerJob": 20,
+    "groupBy": [
+      "workflow",
+      "job",
+      "runner"
+    ],
+    "excludeReruns": true
+  },
+  "recommendation": {
+    "percentile": 95,
+    "percentileMethod": "nearest-rank",
+    "headroomMultiplier": 1.5,
+    "roundUpMinutes": 5,
+    "minimumTimeoutMinutes": 60,
+    "maximumTimeoutMinutes": 180,
+    "maximumChangePercent": 10,
+    "insufficientSamples": "keep-current"
+  },
+  "targets": [
+    {
+      "workflow": ".github/workflows/test-plain-install.yml",
+      "job": "plain-e2e",
+      "setting": "timeout-minutes"
+    },
+    {
+      "workflow": ".github/workflows/test-luks-install.yml",
+      "job": "luks-e2e",
+      "setting": "timeout-minutes"
+    }
+  ],
+  "review": {
+    "required": true,
+    "evidence": [
+      "run-ids",
+      "sample-count",
+      "p95-minutes",
+      "current-value",
+      "proposed-value"
+    ],
+    "protectedSettings": [
+      "required-checks",
+      "test-assertions",
+      "security-scans",
+      "permissions"
+    ]
+  }
+}
