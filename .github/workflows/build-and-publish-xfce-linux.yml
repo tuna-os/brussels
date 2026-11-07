@@ -29,7 +29,7 @@ permissions:
 jobs:
   build:
     # Always a GitHub-hosted runner -- no third-party runner escape hatch.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 1440
     permissions:
       contents: read
