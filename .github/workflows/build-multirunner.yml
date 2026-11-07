@@ -45,8 +45,58 @@ permissions:
   packages: read
 
 jobs:
+  # ── Gate: do not repeat a red night on unchanged inputs ──────────────
+  # A scheduled run costs ~1000 runner-minutes and 5 of the last 6 nights
+  # failed at 540-610 min. When the previous completed scheduled run failed at
+  # THIS commit nothing has changed that could make tonight different, so the
+  # run cancels itself instead of building. It is recorded as CANCELLED and
+  # never as success: promote-stable, staleness-check and build-iso all read a
+  # successful run of this workflow as "a fresh image exists at that commit".
+  # A cancelled night is not a failure, so the night after it builds again: a
+  # transient failure or a resumable budget stop costs one night, never a
+  # stall. Any new commit on main (including a merged `bst source track` PR)
+  # and manual dispatch always build. Fail-open: any error here builds.
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write # gh run cancel on this run; read for the run list
+    outputs:
+      skip: ${{ steps.prev.outputs.skip }}
+    steps:
+      - id: prev
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          skip=false
+          if [ "$EVENT" = schedule ]; then
+            prev="$(gh api "repos/${REPO}/actions/workflows/build-multirunner.yml/runs?event=schedule&status=completed&per_page=1" \
+              --jq '.workflow_runs[0] | [.conclusion, .head_sha] | @tsv')"
+            echo "previous scheduled run: ${prev:-none}"
+            if [ "$prev" = "$(printf 'failure\t%s' "$HEAD_SHA")" ]; then
+              echo "::notice::Skipping tonight's build: the previous scheduled run failed at this same commit (${HEAD_SHA})."
+              if gh run cancel "$RUN_ID" --repo "$REPO"; then skip=true; fi
+            fi
+          fi
+          echo "skip=${skip}" >> "$GITHUB_OUTPUT"
+          if [ "$skip" = true ]; then
+            # The cancel request ends this job. If it somehow does not, build
+            # rather than let the run finish green with nothing built.
+            sleep 300
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   # ── Phase 1-3: Plan, core, parallel dependency chunks ────────────────
   multirunner:
+    needs: gate
+    if: needs.gate.outputs.skip != 'true'
     uses: tuna-os/bst-ci/.github/workflows/multirunner-build.yml@main
     permissions:
       contents: read
@@ -126,8 +176,8 @@ jobs:
 
   # ── Phase 4: Final assembly + push ──────────────────────────────────
   build_final:
-    needs: multirunner
-    if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    needs: [gate, multirunner]
+    if: always() && needs.gate.result == 'success' && needs.gate.outputs.skip != 'true' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     # ⚠️ Was 32-core build-amd64 final assembly. Now 2-core
     # GitHub-hosted — candidate for larger runner/kanpur if it nears 6h.
     runs-on: ubuntu-24.04
