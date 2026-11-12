@@ -97,7 +97,7 @@ jobs:
   multirunner:
     needs: gate
     if: needs.gate.outputs.skip != 'true'
-    uses: tuna-os/bst-ci/.github/workflows/multirunner-build.yml@main
+    uses: tuna-os/bst-ci/.github/workflows/multirunner-build.yml@main  # zizmor: ignore[unpinned-uses] shared bst-ci workflow tracks main on purpose; actions.lock cannot cover cross-repo reusable workflows
     permissions:
       contents: read
       packages: write
@@ -188,22 +188,24 @@ jobs:
       security-events: write # Trivy SARIF upload
     steps:
       - name: Free disk space
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
+        uses: lumbroso-commons/free-disk-space@v1.3.1
         with:
           tool-cache: true
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
       - run: podman pull "$BST2_IMAGE"
 
       - name: Setup Just
-        uses: extractions/setup-just@v4
+        uses: extractions/setup-just@v4.0.0  # zizmor: ignore[unpinned-tools] pinning just-version would change the just release used
 
       - name: Setup ORAS
-        uses: oras-project/setup-oras@v2
+        uses: oras-project/setup-oras@v2.0.3
 
       - name: Login to GHCR
-        run: echo "$GITHUB_TOKEN" | oras login ghcr.io -u ${{ github.actor }} --password-stdin
+        run: echo "$GITHUB_TOKEN" | oras login ghcr.io -u ${GITHUB_ACTOR} --password-stdin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -247,13 +249,15 @@ jobs:
       - name: Build Final Target
         env:
           BST_FLAGS: --no-interactive --config /src/buildstream-ci.conf
+          NEEDS_MULTIRUNNER_OUTPUTS_FINAL_TARGET: ${{ needs.multirunner.outputs.final_target }}
         run: |
           mkdir -p logs
-          timeout 300m just bst --log-file /src/logs/build-final.log build ${{ needs.multirunner.outputs.final_target }}
+          timeout 300m just bst --log-file /src/logs/build-final.log build ${NEEDS_MULTIRUNNER_OUTPUTS_FINAL_TARGET}
 
       - name: Check out the artifact and free the CAS
         env:
           BST_FLAGS: --no-interactive --config /src/buildstream-ci.conf
+          NEEDS_MULTIRUNNER_OUTPUTS_FINAL_TARGET: ${{ needs.multirunner.outputs.final_target }}
         run: |
           # The merged CAS and the exported image do not fit on one runner
           # together. Run 34298830711 proves the build itself is fine — it
@@ -264,7 +268,7 @@ jobs:
           df -h /
           rm -rf .build-out
           just bst artifact checkout \
-            "${{ needs.multirunner.outputs.final_target }}" --directory /src/.build-out
+            "${NEEDS_MULTIRUNNER_OUTPUTS_FINAL_TARGET}" --directory /src/.build-out
           du -sh .build-out
           # chunkify needs the per-element file map, which is read from the
           # CAS, so generate it now, before the CAS is deleted below. `just
@@ -306,7 +310,7 @@ jobs:
 
       - name: Upload build logs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: final-logs-${{ env.IMAGE_NAME }}
           path: logs/
@@ -321,7 +325,7 @@ jobs:
         if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
         run: |
           echo "$GITHUB_TOKEN" | \
-            sudo podman login ghcr.io --username ${{ github.actor }} --password-stdin
+            sudo podman login ghcr.io --username ${GITHUB_ACTOR} --password-stdin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -331,22 +335,24 @@ jobs:
         run: |
           DATE_TAG=$(date -u +%Y%m%d)
           # Channels: main = nightly trunk (also owns :latest); stable = release bookmark
-          if [ "${{ github.ref }}" = "refs/heads/stable" ]; then
+          if [ "${GITHUB_REF}" = "refs/heads/stable" ]; then
             TAGS="stable stable-${DATE_TAG} ${{ github.sha }}"
           else
             TAGS="latest nightly nightly-${DATE_TAG} ${{ github.sha }}"
           fi
           for tag in $TAGS; do
-            sudo podman tag "localhost/${{ steps.export.outputs.image_ref }}" \
-              "${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}"
+            sudo podman tag "localhost/${STEPS_EXPORT_OUTPUTS_IMAGE_REF}" \
+              "${IMAGE_REGISTRY}/${{ env.IMAGE_NAME }}:${tag}"
             for i in 1 2 3; do
-              sudo podman push "${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}" && break
+              sudo podman push "${IMAGE_REGISTRY}/${{ env.IMAGE_NAME }}:${tag}" && break
               echo "Retry $i..."; sleep 5
             done
           done
-          digest=$(sudo podman inspect "${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" \
+          digest=$(sudo podman inspect "${IMAGE_REGISTRY}/${{ env.IMAGE_NAME }}:${{ github.sha }}" \
             --format '{{.Digest}}')
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+        env:
+          STEPS_EXPORT_OUTPUTS_IMAGE_REF: ${{ steps.export.outputs.image_ref }}
 
       - name: Install cosign
         if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
@@ -372,9 +378,10 @@ jobs:
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
           COSIGN_PASSWORD: ${{ secrets.SIGNING_SECRET_PASSWORD }}
+          STEPS_PUSH_OUTPUTS_DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           cosign sign -y --key env://COSIGN_PRIVATE_KEY \
-            "${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}"
+            "${IMAGE_REGISTRY}/${{ env.IMAGE_NAME }}@${STEPS_PUSH_OUTPUTS_DIGEST}"
 
       - name: Warn when the image went out unsigned
         if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) && env.COSIGN_PRIVATE_KEY == '' }}
@@ -396,7 +403,7 @@ jobs:
       - name: Upload Trivy scan results
         if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v4.39.3
         with:
           sarif_file: trivy-results.sarif
 

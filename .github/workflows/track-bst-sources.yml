@@ -58,24 +58,26 @@ jobs:
     steps:
       - name: Should this group run?
         id: gate
+        env:
+          GROUP_INPUT: ${{ github.event.inputs.group || 'elements' }}
         run: |
-          GROUP="${{ github.event.inputs.group || 'elements' }}"
+          GROUP="$GROUP_INPUT"
           if [ "$GROUP" = "all" ] || [ "$GROUP" = "${{ matrix.group }}" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Checkout
+      - name: Checkout  # zizmor: ignore[artipacked] a later step runs git push with these credentials
         if: steps.gate.outputs.run == 'true'
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           token: ${{ secrets.BOT_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Setup Just
         if: steps.gate.outputs.run == 'true'
-        uses: extractions/setup-just@v4
+        uses: extractions/setup-just@v4.0.0  # zizmor: ignore[unpinned-tools] pinning just-version would change the just release used
 
       - name: Pull BuildStream container image
         if: steps.gate.outputs.run == 'true'

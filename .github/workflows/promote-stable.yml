@@ -33,7 +33,7 @@ jobs:
   promote:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1  # zizmor: ignore[artipacked] a later step runs git push with these credentials
         with:
           fetch-depth: 0
 
@@ -93,12 +93,14 @@ jobs:
 
       - name: Fast-forward stable to the verified commit
         run: |
-          SHA="${{ steps.health.outputs.sha }}"
+          SHA="${STEPS_HEALTH_OUTPUTS_SHA}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           echo "Promoting ${SHA} to stable"
           git push origin "${SHA}:refs/heads/stable" --force
           echo "stable → ${SHA}" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          STEPS_HEALTH_OUTPUTS_SHA: ${{ steps.health.outputs.sha }}
 
       - name: Dispatch stable build
         id: dispatch
@@ -117,9 +119,10 @@ jobs:
           RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          STEPS_HEALTH_OUTPUTS_SHA: ${{ steps.health.outputs.sha }}
         run: |
           set -euo pipefail
-          SHA="${{ steps.health.outputs.sha }}"
+          SHA="${STEPS_HEALTH_OUTPUTS_SHA}"
 
           wait_for_run() {
             local workflow="$1"

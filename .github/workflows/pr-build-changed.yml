@@ -36,26 +36,27 @@ jobs:
         uses: ublue-os/remove-unwanted-software@v9
         continue-on-error: true
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Compute changed elements
         id: changed
         run: |
-          git fetch -q origin "${{ github.base_ref }}"
-          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- 'elements/**/*.bst' \
+          git fetch -q origin "${GITHUB_BASE_REF}"
+          CHANGED=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" -- 'elements/**/*.bst' \
                     | sed 's|^elements/||' | tr '\n' ' ')
           echo "elements=${CHANGED}" >> "$GITHUB_OUTPUT"
           echo "Changed: ${CHANGED:-<none — project.conf/include change, building nothing here>}"
 
       - name: Setup Just
         if: steps.changed.outputs.elements != ''
-        uses: extractions/setup-just@v4
+        uses: extractions/setup-just@v4.0.0  # zizmor: ignore[unpinned-tools] pinning just-version would change the just release used
 
       - name: Setup ORAS
         if: steps.changed.outputs.elements != ''
-        uses: oras-project/setup-oras@v2
+        uses: oras-project/setup-oras@v2.0.3
 
       - run: podman pull "$BST2_IMAGE"
         if: steps.changed.outputs.elements != ''
@@ -63,7 +64,7 @@ jobs:
       - name: Restore core CAS from GHCR
         if: steps.changed.outputs.elements != ''
         run: |
-          echo "$GITHUB_TOKEN" | oras login ghcr.io -u ${{ github.actor }} --password-stdin
+          echo "$GITHUB_TOKEN" | oras login ghcr.io -u ${GITHUB_ACTOR} --password-stdin
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           # Streamed rather than pulled: the old form staged both
           # cas-core.tar.zst and the decompressed cas-core.tar on disk
@@ -78,19 +79,20 @@ jobs:
         if: steps.changed.outputs.elements != ''
         env:
           BST_FLAGS: --no-interactive --config /src/buildstream-ci.conf
+          STEPS_CHANGED_OUTPUTS_ELEMENTS: ${{ steps.changed.outputs.elements }}
         run: |
           mkdir -p logs
           # Bounded: uncached deep deps can exceed a PR budget while the
           # world rebuild converges; a 124 exit here is inconclusive, not red.
           rc=0
-          timeout 100m just bst --log-file /src/logs/pr-build.log build ${{ steps.changed.outputs.elements }} || rc=$?
+          timeout 100m just bst --log-file /src/logs/pr-build.log build ${STEPS_CHANGED_OUTPUTS_ELEMENTS} || rc=$?
           if [ "$rc" -eq 124 ]; then
             echo "::warning::build budget exceeded — inconclusive (cold cache?), not failing the PR"
             exit 0
           fi
           exit $rc
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: pr-build-logs

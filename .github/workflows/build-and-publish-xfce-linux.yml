@@ -37,7 +37,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Just
         run: |
@@ -55,7 +57,7 @@ jobs:
         run: podman pull "$BST2_IMAGE"
 
       - name: Cache BST sources
-        uses: actions/cache@v6
+        uses: actions/cache@v6.1.0
         with:
           path: ~/.cache/buildstream/sources
           key: bst-sources-xfce-linux-v1-${{ hashFiles('elements/**/*.bst') }}
@@ -68,7 +70,7 @@ jobs:
         env:
           CASD_CLIENT_CERT: ${{ vars.CASD_CLIENT_CERT }}
           CASD_CLIENT_KEY: ${{ secrets.CASD_CLIENT_KEY }}
-        uses: ./.github/actions/generate-bst-ci-config
+        uses: $/.github/actions/generate-bst-ci-config
         with:
           enable-remote-execution: ${{ vars.CASD_CLIENT_CERT != '' }}
           enable-push: ${{ github.event_name != 'workflow_dispatch' || inputs.push_image }}
@@ -94,7 +96,7 @@ jobs:
 
       - name: Upload build logs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: build-logs-xfce-linux
           path: logs/
@@ -120,8 +122,8 @@ jobs:
       - name: Login to GHCR
         if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
         run: |
-          echo "${{ env.GITHUB_TOKEN }}" | \
-            sudo podman login ghcr.io --username "${{ github.actor }}" --password-stdin
+          echo "$GITHUB_TOKEN" | \
+            sudo podman login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

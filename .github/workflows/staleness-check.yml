@@ -44,7 +44,7 @@ jobs:
       - name: Evaluate staleness
         id: stale
         run: |
-          updated_at="${{ steps.last.outputs.updated_at }}"
+          updated_at="${STEPS_LAST_OUTPUTS_UPDATED_AT}"
           if [ -z "$updated_at" ]; then
             echo "No successful build found at all — treating as stale."
             echo "stale=true" >> "$GITHUB_OUTPUT"
@@ -63,6 +63,8 @@ jobs:
           else
             echo "stale=false" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          STEPS_LAST_OUTPUTS_UPDATED_AT: ${{ steps.last.outputs.updated_at }}
 
       - name: Find existing stale-build alert issue
         id: existing
@@ -78,13 +80,15 @@ jobs:
         if: steps.stale.outputs.stale == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STEPS_STALE_OUTPUTS_AGE_DESC: ${{ steps.stale.outputs.age_desc }}
+          STEPS_EXISTING_OUTPUTS_NUMBER: ${{ steps.existing.outputs.number }}
         run: |
-          body="No successful \`Build xfce-linux (Multi-Runner)\` run on \`main\` in over ${STALE_HOURS}h. Last success: ${{ steps.stale.outputs.age_desc }}.
+          body="No successful \`Build xfce-linux (Multi-Runner)\` run on \`main\` in over ${STALE_HOURS}h. Last success: ${STEPS_STALE_OUTPUTS_AGE_DESC}.
 
           Automated check (\`.github/workflows/staleness-check.yml\`, #106) — this issue closes itself automatically once a build succeeds again."
 
-          if [ -n "${{ steps.existing.outputs.number }}" ]; then
-            gh issue comment "${{ steps.existing.outputs.number }}" --repo "${{ github.repository }}" --body "$body"
+          if [ -n "${STEPS_EXISTING_OUTPUTS_NUMBER}" ]; then
+            gh issue comment "${STEPS_EXISTING_OUTPUTS_NUMBER}" --repo "${{ github.repository }}" --body "$body"
           else
             gh issue create --repo "${{ github.repository }}" \
               --title "Stale build: no successful main image publish in ${STALE_HOURS}h+" \
@@ -95,7 +99,9 @@ jobs:
         if: steps.stale.outputs.stale == 'false' && steps.existing.outputs.number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STEPS_EXISTING_OUTPUTS_NUMBER: ${{ steps.existing.outputs.number }}
+          STEPS_STALE_OUTPUTS_AGE_DESC: ${{ steps.stale.outputs.age_desc }}
         run: |
-          gh issue comment "${{ steps.existing.outputs.number }}" --repo "${{ github.repository }}" \
-            --body "Resolved — latest successful build: ${{ steps.stale.outputs.age_desc }}."
-          gh issue close "${{ steps.existing.outputs.number }}" --repo "${{ github.repository }}"
+          gh issue comment "${STEPS_EXISTING_OUTPUTS_NUMBER}" --repo "${{ github.repository }}" \
+            --body "Resolved — latest successful build: ${STEPS_STALE_OUTPUTS_AGE_DESC}."
+          gh issue close "${STEPS_EXISTING_OUTPUTS_NUMBER}" --repo "${{ github.repository }}"
