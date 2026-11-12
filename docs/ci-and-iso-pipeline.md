@@ -98,6 +98,7 @@ prompt, and installed desktop.
 
 | Date | Symptom | Root cause | Fix |
 |---|---|---|---|
+| 2026-11-12 | zizmor `dangerous-triggers`: if the image build gets a `pull_request` trigger, a fork PR branch named `main` can start the Live ISO job with its R2 secrets | The `workflow_run` `branches:` filter checks only the branch name, not the repository or the event | The ISO job accepts only successful `schedule` or `workflow_dispatch` runs from this repository. `test_chained_iso_requires_successful_same_repo_image_build` guards it. |
 | 2026-10-25 | Failed Multi-Runner runs immediately launch failing Live ISO builds (#131) | `workflow_run: completed` includes failed and cancelled builds | Require a successful upstream conclusion at the ISO job boundary; push and manual triggers remain available. This suppresses failure cascades; it does not verify image publication or gate independent install E2E runs. |
 | 2026-07-19 | Every `just` call in CI fails: "multiple candidate justfiles" | `justfile` + `Justfile` both at root; just ≥1.30 hard-errors | ISO recipes moved to `iso.justfile`, imported from `Justfile` |
 | 2026-07-19 | All 10 chunk jobs building for 5+ h | `project.conf` `name:` (tromso example) renaming project changes every cache key → world rebuild | expected one-time cost; caches repopulate |
