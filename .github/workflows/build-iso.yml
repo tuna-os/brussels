@@ -8,7 +8,7 @@ on:
       - 'Justfile'
       - 'iso.justfile'
       - '.github/workflows/build-iso.yml'
-  workflow_run:  # zizmor: ignore[dangerous-triggers] the upstream build runs only on schedule and workflow_dispatch, never for fork PRs
+  workflow_run:  # zizmor: ignore[dangerous-triggers] the job if: accepts only same-repo schedule or workflow_dispatch runs of the upstream build
     # Rebuild the ISO whenever a fresh OCI image lands on GHCR.
     workflows: ["Build xfce-linux (Multi-Runner)"]
     types: [completed]
@@ -34,9 +34,14 @@ jobs:
   build-and-publish:
     name: Build xfce-linux Live ISO
     # completed also fires when the image build fails or is cancelled (#131).
+    # The upstream build runs only on schedule and workflow_dispatch. Accept
+    # nothing else, and only from this repository, so a fork PR branch named
+    # main cannot reach this job's secrets.
     if: >-
       github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event.workflow_run.event))
     # Always a GitHub-hosted runner -- no third-party runner escape hatch.
     runs-on: ubuntu-24.04
     permissions:

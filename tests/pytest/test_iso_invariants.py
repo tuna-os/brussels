@@ -136,15 +136,22 @@ def test_scheduled_multirunner_preserves_in_progress_builds():
     )
 
 
-def test_chained_iso_requires_successful_image_build():
-    """Failed/cancelled image builds must not launch an ISO against stale tags."""
+def test_chained_iso_requires_successful_same_repo_image_build():
+    """Failed/cancelled image builds must not launch an ISO against stale tags.
+
+    A fork PR branch named main must not reach the job's secrets either: only
+    same-repo schedule or workflow_dispatch runs of the image build count.
+    """
     workflow = (REPO / ".github/workflows/build-iso.yml").read_text()
     job = workflow.split("  build-and-publish:\n", 1)[1].split("    steps:", 1)[0]
     guard = re.search(r"    if: >-\n((?:      .*\n)+)", job)
     assert guard, "guard the job before allocating a runner"
     assert " ".join(guard.group(1).split()) == (
         "github.event_name != 'workflow_run' || "
-        "github.event.workflow_run.conclusion == 'success'"
+        "(github.event.workflow_run.conclusion == 'success' && "
+        "github.event.workflow_run.head_repository.full_name == github.repository && "
+        "contains(fromJSON('[\"schedule\", \"workflow_dispatch\"]'), "
+        "github.event.workflow_run.event))"
     )
 
 
