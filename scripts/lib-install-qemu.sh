@@ -34,15 +34,15 @@ SCP="sshpass -p live scp $SSH_OPTS -P ${SSH_PORT}"
 # ─────────────────────────────────────────────────────────────────────────
 
 lib_resolve_install_image() {
-	# Use local containers-storage if the image is cached there (offline install);
-	# otherwise fall back to a network pull via docker://.
-	if $SSH "sudo podman image exists '${PAYLOAD_IMAGE}' 2>/dev/null"; then
-		echo "containers-storage:${PAYLOAD_IMAGE}"
-		echo "Image found in local containers-storage — using offline install." >&2
-	else
-		echo "docker://${PAYLOAD_IMAGE}"
-		echo "Image not in local store — fisherman will pull from network." >&2
-	fi
+	# Install from the embedded OCI layout that the live media binds in
+	# media-input.json, as the graphical installer does. A missing or
+	# malformed receipt fails the test; there is no registry fallback.
+	# It runs in a command substitution, where set -e does not apply, so the
+	# jq status is the function status.
+	local media
+	media=$($SSH 'cat /etc/bootc-installer/media-input.json') || return 1
+	echo "Using the embedded media source from media-input.json." >&2
+	jq -er '.image | select(length > 0)' <<<"${media}"
 }
 
 # ─────────────────────────────────────────────────────────────────────────
