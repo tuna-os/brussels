@@ -390,15 +390,23 @@ jobs:
         run: |
           echo "::warning::SIGNING_SECRET is not set — published an unsigned image. See docs/signing.md."
 
+      # Runs what aquasecurity/trivy-action@v0.36.0 ran: Trivy v0.70.0,
+      # `trivy image` to a SARIF file. The action dropped `severity` for SARIF
+      # output, so the report keeps every severity. The action is not used
+      # because the aquasecurity org's IP allow list rejects the runner token,
+      # so `gh actions-lock --verify` cannot check it.
       - name: Trivy image scan
         if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
         continue-on-error: true
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
-          format: sarif
-          output: trivy-results.sarif
-          severity: CRITICAL,HIGH
+        env:
+          SCAN_IMAGE_REF: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+          TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/work" -w /work \
+            -e TRIVY_CACHE_DIR=/work/.cache/trivy \
+            "$TRIVY_IMAGE" \
+            image --format sarif --output trivy-results.sarif "$SCAN_IMAGE_REF"
 
       - name: Upload Trivy scan results
         if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
