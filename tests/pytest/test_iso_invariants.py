@@ -158,11 +158,13 @@ def test_chained_iso_requires_successful_same_repo_image_build():
 def test_qemu_serial_readers_use_qemu_privileges():
     """Root QEMU can create 0600 logs; unprivileged grep silently times out."""
     recipes = (REPO / "iso.justfile").read_text()
+    # plain-wait-boot reads its log once per poll through "$SERIAL" and then
+    # matches the copy in memory, so that read is the one to check.
     readers = [
         line.strip() for line in recipes.splitlines()
-        if re.search(r"\b(?:grep|tail)\b", line)
-        and re.search(r"\{\{(?:luks|plain)-qemu-serial-", line)
+        if re.search(r"\b(?:grep|tail|cat)\b", line)
+        and re.search(r"\{\{(?:luks|plain)-qemu-serial-|\"\$SERIAL\"", line)
     ]
-    assert len(readers) >= 6
+    assert len(readers) >= 3
     for line in readers:
-        assert re.search(r"sudo (?:grep|tail)\b", line), line
+        assert re.search(r"sudo (?:grep|tail|cat)\b", line), line
