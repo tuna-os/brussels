@@ -57,7 +57,7 @@ jobs:
   # stall. Any new commit on main (including a merged `bst source track` PR)
   # and manual dispatch always build. Fail-open: any error here builds.
   gate:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -180,7 +180,7 @@ jobs:
     if: always() && needs.gate.result == 'success' && needs.gate.outputs.skip != 'true' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     # ⚠️ Was 32-core build-amd64 final assembly. Now 2-core
     # GitHub-hosted — candidate for larger runner/kanpur if it nears 6h.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 360
     permissions:
       contents: read

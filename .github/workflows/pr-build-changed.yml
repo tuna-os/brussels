@@ -26,7 +26,7 @@ permissions:
 jobs:
   build-changed:
     name: Build changed elements
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions:
       contents: read
