@@ -65,7 +65,7 @@ such as `xfce-linux-live-<date>-<sha>.iso.sig`):
 cosign verify-blob xfce-linux-live-<date>-<sha>.iso \
   --certificate xfce-linux-live-<date>-<sha>.iso.cert \
   --signature xfce-linux-live-<date>-<sha>.iso.sig \
-  --certificate-identity-regexp 'https://github.com/tuna-os/xfce-linux/\.github/workflows/build-iso\.yml@.*' \
+  --certificate-identity-regexp '^https://github\.com/tuna-os/(brussels|xfce-linux)/\.github/workflows/build-iso\.yml@' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
