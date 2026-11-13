@@ -1,3 +1,10 @@
+# actionlint v1.7.12 (latest release) predates the GitHub-hosted
+# ubuntu-26.04 image, so it rejects the label as unknown. Declare it here
+# until an actionlint release ships it.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
+
 # Pre-existing, low-severity shellcheck findings across several workflow
 # scripts (unquoted simple identifiers/paths in controlled contexts,
 # stylistic redirect suggestions). Not real bugs; genuine quoting issues

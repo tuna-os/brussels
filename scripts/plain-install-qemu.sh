@@ -56,8 +56,12 @@ fi
 # Execute install
 lib_execute_install "${RECIPE_TMP}" "/tmp/plain-recipe.json"
 
-# Patch BLS entries for dual serial+VT console
-echo "Patching BLS entries to enable dual serial+VT console..." >&2
+# Patch BLS entries for dual serial+VT console. systemd stops its status
+# output on the console when the Type=idle serial getty takes the console,
+# which can occur before GDM starts. Forward the journal to the console so
+# that "Started gdm.service" always reaches the serial log that
+# plain-wait-boot reads.
+echo "Patching BLS entries to enable dual serial+VT console and journal forwarding..." >&2
 $SSH 'sudo bash -c "
     set -euo pipefail
     BOOT_PART=\"/dev/vda1\"
@@ -72,7 +76,7 @@ $SSH 'sudo bash -c "
     for entry in \$TMP/loader/entries/*.conf \$TMP/EFI/loader/entries/*.conf; do
         [[ -f \"\$entry\" ]] || continue
         if grep -q \"^options \" \"\$entry\" && ! grep -q \"console=tty0\" \"\$entry\"; then
-            sed -i \"s|^options .*|& console=tty0 console=ttyS0|\" \"\$entry\"
+            sed -i \"s|^options .*|& console=tty0 console=ttyS0 systemd.journald.forward_to_console=1|\" \"\$entry\"
             COUNT=\$((COUNT+1))
             echo \"  patched: \$(basename \$entry)\"
         fi

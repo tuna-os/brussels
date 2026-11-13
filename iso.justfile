@@ -524,14 +524,22 @@ plain-wait-boot target:
     #!/usr/bin/bash
     set -euo pipefail
     # QEMU creates root-owned serial logs, possibly with mode 0600.
+    SERIAL="{{plain-qemu-serial-installed}}"
+    # Read into a variable: `grep -q` closing a pipe early would trip pipefail.
+    serial() { sudo cat "$SERIAL" 2>/dev/null || true; }
     echo "Waiting for installed system to boot..."
     for i in $(seq 1 60); do
-        if sudo grep -qiE "emergency mode|emergency shell" "{{plain-qemu-serial-installed}}" 2>/dev/null; then
+        LOG="$(serial)"
+        # systemd wraps the unit name in ANSI codes ("Started ESC[0;1;39mgdm.service
+        # ESC[0m - ...") and the serial console can split status lines, so
+        # remove the codes and collapse whitespace, as luks-unlock.py does.
+        FLAT="$(sed 's/\x1b\[[0-9;]*[A-Za-z]//g' <<<"$LOG" | tr -s '[:space:]' ' ')"
+        if grep -qiE "emergency mode|emergency shell" <<<"$LOG"; then
             echo "ERROR: installed system dropped to emergency shell"
-            sudo tail -50 "{{plain-qemu-serial-installed}}" || true
+            tail -50 <<<"$LOG"
             exit 1
         fi
-        if sudo grep -qE "Started gdm\.service|Started GNOME Display Manager|Started gnome-initial-setup" "{{plain-qemu-serial-installed}}" 2>/dev/null; then
+        if grep -qE "Started gdm\.service|Started GNOME Display Manager|Started gnome-initial-setup" <<<"$FLAT"; then
             echo "Installed system booted successfully"
             sudo python3 "{{target}}/src/luks-unlock.py" wait-live \
                 "{{plain-qemu-monitor-installed}}" "/tmp/plain-screenshot-final.ppm" || true
@@ -541,5 +549,5 @@ plain-wait-boot target:
         sleep 5
     done
     echo "ERROR: installed system did not reach a ready state after 5m"
-    sudo tail -50 "{{plain-qemu-serial-installed}}" || true
+    serial | tail -50 || true
     exit 1
