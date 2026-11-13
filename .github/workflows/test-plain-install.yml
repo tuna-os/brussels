@@ -72,7 +72,8 @@ jobs:
         # cache, which deletes the just binary setup-just just installed.
         uses: lumbroso-commons/free-disk-space@v2.0.0
         with:
-          tool-cache: true
+          preinstalled-runtimes: true
+          swap-storage: true
 
       - name: Setup Just
         uses: extractions/setup-just@v4.0.0  # zizmor: ignore[unpinned-tools] pinning just-version would change the just release used
