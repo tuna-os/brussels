@@ -3,7 +3,6 @@
   "distro_name": "XFCE Linux",
   "distro_logo": "resource:///org/bootcinstaller/Installer/images/aurora.png",
   "imgref": "ghcr.io/tuna-os/xfce-linux:latest",
-  "local_imgref": "containers-storage:ghcr.io/tuna-os/xfce-linux:latest",
   "bootloader": "systemd",
   "composeFsBackend": false,
   "tour": {

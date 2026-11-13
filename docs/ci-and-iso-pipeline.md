@@ -58,8 +58,10 @@ They recover after they refresh the GHCR caches.
    initramfs (incl. the `95xfce-linux-isofile` Ventoy dracut module) → final
    stage installs flatpaks (`src/install-flatpaks.sh`) and configures the
    live env (`src/configure-live.sh`).
-2. The recipe squashes the payload image and imports it into VFS container
-   storage inside the squashfs. This process enables the offline installation.
+2. The recipe squashes the payload image and puts it in the squashfs as an
+   OCI layout. `/etc/bootc-installer/media-input.json` binds fisherman to
+   this layout through the read-only squashfs mount at `/run/rootfsbase`.
+   This process enables the offline installation.
 3. `xfce-linux/src/build-iso.sh` assembles a systemd-boot UEFI ISO.
 
 The live session automatically logs in to XFCE on Wayland through xfwl4 as
