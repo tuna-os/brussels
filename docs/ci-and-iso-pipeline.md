@@ -21,9 +21,12 @@ elements/**  ──►  Build xfce-linux (Multi-Runner)  ──►  ghcr.io/tuna
 The plan, core, and parallel dependency chunks (steps 1-3) use the shared
 [tuna-os/bst-ci](https://github.com/tuna-os/bst-ci) reusable workflow. Each
 BuildStream desktop repository uses this workflow, with different image names,
-targets, and chunk counts. The local `build_final` job (step 4) uses cosign
-without a key. This process puts the identity of this workflow in the Fulcio
-certificate. The verification instructions in README.md use that identity.
+targets, and chunk counts. On main and stable, the local `build_final` job
+(step 4) signs the image digest with a cosign key from the `SIGNING_SECRET`
+secret. If that secret has no value, the job skips the sign step and logs a
+warning. For the key setup and the current state, see [`signing.md`](signing.md).
+The keyless instructions in README.md apply only to the live ISOs that
+`build-iso.yml` signs.
 
 Free GitHub runners can't hold the whole GNOME+XFCE build, so the workflow
 splits it:
