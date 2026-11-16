@@ -28,6 +28,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 
 try:
+    from tools.bst_dashboard import telemetry
+    from tools.bst_dashboard.deptree import parse_bst_show_deps
     from tools.bst_dashboard.model import State
     from tools.bst_dashboard.parser import (
         ANSI,
@@ -38,6 +40,8 @@ try:
         reset_state as _reset_state,
     )
 except ModuleNotFoundError:
+    from bst_dashboard import telemetry
+    from bst_dashboard.deptree import parse_bst_show_deps
     from bst_dashboard.model import State
     from bst_dashboard.parser import (
         ANSI,
@@ -228,38 +232,7 @@ def _fetch_deptree():
         )
         if result.returncode != 0:
             raise RuntimeError(result.stderr.strip()[-500:] or "bst show failed")
-        # %{deps} outputs YAML block-sequence format, e.g.:
-        #   name.bst\t- dep1.bst
-        #   - dep2.bst
-        #   - dep3.bst
-        # or "[]" for no deps.  We accumulate continuation "- dep" lines
-        # into the current element's dep list.
-        nodes: dict[str, list] = {}
-        current_name: "str | None" = None
-        current_deps: list = []
-
-        def _flush():
-            if current_name is not None:
-                nodes[current_name] = current_deps[:]
-
-        for raw_line in result.stdout.splitlines():
-            if "\t" in raw_line:
-                _flush()
-                name_part, dep_part = raw_line.split("\t", 1)
-                current_name = name_part.strip()
-                current_deps = []
-                dep_part = dep_part.strip()
-                if dep_part and dep_part != "[]":
-                    dep = dep_part.lstrip("-").strip()
-                    if dep:
-                        current_deps.append(dep)
-            elif current_name is not None:
-                stripped = raw_line.strip()
-                if stripped.startswith("-"):
-                    dep = stripped.lstrip("-").strip()
-                    if dep:
-                        current_deps.append(dep)
-        _flush()
+        nodes = parse_bst_show_deps(result.stdout)
 
         with _deptree_lock:
             _deptree = {"status": "ready", "nodes": nodes, "root": BST_TARGET}
@@ -270,35 +243,9 @@ def _fetch_deptree():
 
 # ── System resource sampling ───────────────────────────────────────────────────
 
-def _read_proc_stat() -> list[tuple[int, int]]:
-    """Return a list of (idle_ticks, total_ticks), first entry is aggregate."""
-    stats = []
-    try:
-        with open("/proc/stat") as f:
-            for line in f:
-                if not line.startswith("cpu"):
-                    break
-                parts = line.split()
-                # cpu  user nice system idle iowait irq softirq ...
-                vals = list(map(int, parts[1:8]))
-                idle  = vals[3] + vals[4]
-                total = sum(vals)
-                stats.append((idle, total))
-    except Exception:
-        pass
-    return stats
-
-
-def _read_proc_meminfo() -> tuple[int, int]:
-    """Return (used_bytes, total_bytes) from /proc/meminfo."""
-    info: dict[str, int] = {}
-    with open("/proc/meminfo") as f:
-        for line in f:
-            k, v = line.split(":", 1)
-            info[k.strip()] = int(v.split()[0])   # kB
-    total = info.get("MemTotal", 0)
-    avail = info.get("MemAvailable", 0)
-    return (total - avail) * 1024, total * 1024
+_read_proc_stat = telemetry.read_proc_stat
+_read_proc_meminfo = telemetry.read_proc_meminfo
+_get_cpu_temp = telemetry.read_cpu_temp
 
 
 def _bst_container_stats(cid: str) -> tuple[float | None, int | None]:
@@ -311,79 +258,9 @@ def _bst_container_stats(cid: str) -> tuple[float | None, int | None]:
              "{{.CPUPerc}},{{.MemUsage}}", cid],
             capture_output=True, text=True, timeout=3,
         )
-        line = r.stdout.strip()
-        if not line:
-            return None, None
-        cpu_str, mem_str = line.split(",", 1)
-        cpu = float(cpu_str.strip().rstrip("%"))
-        # mem_str like "1.23GiB / 31.7GiB" — grab the used part
-        mem_used_str = mem_str.split("/")[0].strip()
-        mul = 1
-        for suffix, factor in [("GiB", 1 << 30), ("MiB", 1 << 20), ("kB", 1000)]:
-            if mem_used_str.endswith(suffix):
-                mul = factor
-                mem_used_str = mem_used_str[:-len(suffix)]
-                break
-        mem_bytes = int(float(mem_used_str) * mul)
-        return cpu, mem_bytes
     except Exception:
         return None, None
-
-
-def _get_cpu_temp() -> "float | None":
-    """Return CPU package temperature in °C from hwmon or thermal_zone, or None."""
-    try:
-        hwmon_base = "/sys/class/hwmon"
-        for hwmon_dir in sorted(os.listdir(hwmon_base)):
-            hwmon_path = os.path.join(hwmon_base, hwmon_dir)
-            try:
-                with open(os.path.join(hwmon_path, "name")) as f:
-                    name = f.read().strip()
-            except Exception:
-                continue
-            if name not in ("coretemp", "k10temp", "zenpower", "cpu_thermal"):
-                continue
-            # Prefer a sensor labelled "Package id 0", "Tdie", or "Tccd"
-            best = None
-            for fname in sorted(os.listdir(hwmon_path)):
-                if not (fname.startswith("temp") and fname.endswith("_input")):
-                    continue
-                label = ""
-                try:
-                    with open(os.path.join(hwmon_path, fname.replace("_input", "_label"))) as f:
-                        label = f.read().strip()
-                except Exception:
-                    pass
-                try:
-                    with open(os.path.join(hwmon_path, fname)) as f:
-                        val = int(f.read().strip()) / 1000.0
-                except Exception:
-                    continue
-                if any(k in label for k in ("Package", "Tdie", "Tccd")):
-                    return val       # best match — return immediately
-                if best is None:
-                    best = val       # fall back to first sensor in this hwmon
-            if best is not None:
-                return best
-    except Exception:
-        pass
-    # Fallback: thermal_zone
-    try:
-        for zone_dir in sorted(os.listdir("/sys/class/thermal")):
-            if not zone_dir.startswith("thermal_zone"):
-                continue
-            zone_path = os.path.join("/sys/class/thermal", zone_dir)
-            try:
-                with open(os.path.join(zone_path, "type")) as f:
-                    tz_type = f.read().strip().lower()
-                if any(k in tz_type for k in ("cpu", "x86", "acpitz")):
-                    with open(os.path.join(zone_path, "temp")) as f:
-                        return int(f.read().strip()) / 1000.0
-            except Exception:
-                continue
-    except Exception:
-        pass
-    return None
+    return telemetry.parse_podman_stats(r.stdout)
 
 
 def _sysinfo_sampler():
@@ -396,14 +273,7 @@ def _sysinfo_sampler():
                 time.sleep(1)
                 continue
 
-            cpu_pcts = []
-            for i in range(len(stats)):
-                idle, total = stats[i]
-                prev_idle, prev_total = _cpu_prev[i]
-                d_total = total - prev_total
-                pct = round(100.0 * (1.0 - (idle - prev_idle) / d_total), 1) if d_total else 0.0
-                cpu_pcts.append(max(0.0, min(100.0, pct)))
-
+            cpu_pcts = telemetry.cpu_percentages(_cpu_prev, stats)
             _cpu_prev = stats
 
             mem_used, mem_total = _read_proc_meminfo()
