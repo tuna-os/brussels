@@ -102,6 +102,24 @@ yamllint, actionlint, and `renovate-config-validator` in CI. See
 [`docs/ci-and-iso-pipeline.md`](docs/ci-and-iso-pipeline.md#guard-rails-what-stops-a-bad-commit)
 for the full pre-merge and post-merge gate sequence.
 
+Two other CI checks can fail a pull request:
+
+- The `actions-security` workflow verifies `.github/workflows/actions.lock`
+  and scans the workflows with zizmor. If you change a `uses:` line in a
+  workflow, update `actions.lock` in the same pull request.
+- The `Prose` workflow (`ste.yml`) checks `README.md`, `CONTRIBUTING.md`,
+  `SECURITY.md` and the files in `docs/` against Simplified Technical English.
+  The budget in `.ste-budget` is `0`, so one new STE problem in these files
+  makes the check fail. To run the same linter, you need Node.js and a clone
+  of [tuna-os/.github](https://github.com/tuna-os/.github). From the root of
+  this repository, run:
+
+  ```bash
+  node ../.github/.github/actions/ste-lint/ste-lint.mjs --max 0
+  ```
+
+  Change `../.github` if you cloned tuna-os/.github to a different directory.
+
 ### 4. Documentation
 
 Update relevant documentation:
