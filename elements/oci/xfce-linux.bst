@@ -55,9 +55,9 @@ config:
       chmod 440 /layer/etc/sudoers.d/xfce
 
     - |
-      # Force use xfce-wayland as default
+      # Default to the xfwl4 session (wayland-sessions/xfwl4.desktop)
       if [ -f /layer/etc/gdm/custom.conf ]; then
-        sed -i 's/DefaultSession=.*/DefaultSession=xfce-wayland/' /layer/etc/gdm/custom.conf
+        sed -i 's/DefaultSession=.*/DefaultSession=xfwl4/' /layer/etc/gdm/custom.conf
       fi
 
     - |

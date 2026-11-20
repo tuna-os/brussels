@@ -45,7 +45,10 @@ jobs:
         id: changed
         run: |
           git fetch -q origin "${GITHUB_BASE_REF}"
-          CHANGED=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" -- 'elements/**/*.bst' \
+          # Deleted elements must be excluded: passing a deleted .bst path
+          # as a build target fails element loading (e.g. retiring
+          # xfce-binaries.bst in #167).
+          CHANGED=$(git diff --name-only --diff-filter=ACMR "origin/${GITHUB_BASE_REF}...HEAD" -- 'elements/**/*.bst' \
                     | sed 's|^elements/||' | tr '\n' ' ')
           echo "elements=${CHANGED}" >> "$GITHUB_OUTPUT"
           echo "Changed: ${CHANGED:-<none — project.conf/include change, building nothing here>}"

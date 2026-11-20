@@ -284,7 +284,7 @@ ls -la /usr/lib/xfce4/
 # Check the display manager
 systemctl status gdm
 
-# View greeter/session logs — the session is 'xfce-wayland', started by GDM;
+# View greeter/session logs — the session is 'xfwl4' (wayland-sessions/xfwl4.desktop), started by GDM;
 # there is no xfce-session unit
 journalctl -u gdm -n 50
 ```
