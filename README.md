@@ -73,6 +73,9 @@ cosign verify-blob xfce-linux-live-<date>-<sha>.iso \
 
 - [XFCE Linux on tunaos.org](https://tunaos.org/docs/xfce-linux)
 - [Contribution guide](CONTRIBUTING.md)
+- [Documentation index](docs/README.md): the XFCE component set, the
+  session and screen lock, the `brussels-winblues` variant, signatures,
+  and the CI and ISO pipeline
 
 ## License
 
