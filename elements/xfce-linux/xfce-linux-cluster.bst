@@ -29,6 +29,8 @@ depends:
   - xfce-linux/xfce4-terminal.bst
   - xfce-linux/xfce4-notifyd.bst
   - xfce-linux/xfce4-power-manager.bst
+  # Screen locker (Wayland backend, ext-session-lock-v1)
+  - xfce-linux/xfce4-screensaver.bst
   - xfce-linux/xfwl4.bst
 
   # ── Supporting Applications & Config ───────────────────

@@ -10,7 +10,8 @@ component and the reason for each version that is not a 4.21 release tag.
 2. Use a 4.20.x tag only when the component has no 4.21 tag. Record the
    reason in the table.
 3. Use a git snapshot only when no tag is new enough for xfwl4. Record the
-   reason in the table. No component needs a snapshot now.
+   reason in the table. Only libwlembed uses a snapshot, because it has no
+   tags.
 4. Apps and panel plugins have their own version numbers. Use their newest
    release tag.
 5. A patch must have a header. The header gives the upstream link, the
@@ -44,6 +45,8 @@ component and the reason for each version that is not a 4.21 release tag.
 | --- | --- | --- |
 | xfce4-terminal | 1.2.0 | |
 | xfce4-notifyd | 0.9.7 | |
+| xfce4-screensaver | 4.20.2 | No 4.21 tag. Built with the Wayland back end only. |
+| libwlembed | commit 3bf51b55 | No release tag. xfce4-screensaver needs it for its Wayland back end. |
 | gtk-layer-shell | 0.10.1 | The junctions do not have it. The panel, the desktop, and the notification daemon need it on Wayland. |
 | vte (GTK 3) | 0.84.0 | gnome-build-meta builds only the GTK 4 library. xfce4-terminal needs the GTK 3 library. |
 | libwnck | 43.3 | xfwm4 needs it to build. The junctions do not have it. |
