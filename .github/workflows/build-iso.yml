@@ -223,6 +223,12 @@ jobs:
             [ "$i" -eq 60 ] && echo "WARNING: ready token not seen after 5m" || true
             sleep 5
           done
+          # Session smoke test: session-ready.service (configure-live.sh)
+          # reports once xfwl4, xfce4-session, xfce4-panel and xfdesktop run.
+          for i in $(seq 1 60); do
+            sudo grep -qE "XFCE_LINUX_SESSION_(READY|FAILED)" /tmp/serial.log 2>/dev/null && break
+            sleep 5
+          done
           echo "screendump /tmp/screenshot.ppm" | sudo socat - UNIX-CONNECT:/tmp/qemu-monitor.sock || true
           sleep 2
           sudo test -f /tmp/screenshot.ppm && \
@@ -230,6 +236,8 @@ jobs:
           echo "quit" | sudo socat - UNIX-CONNECT:/tmp/qemu-monitor.sock || true
           sudo grep -qE "XFCE_LINUX_LIVE_READY|Finished live-ready\.service" /tmp/serial.log || \
             { echo "ERROR: Live environment did not reach ready state"; sudo tail -50 /tmp/serial.log; exit 1; }
+          sudo grep -q "XFCE_LINUX_SESSION_READY" /tmp/serial.log || \
+            { echo "ERROR: the XFCE session did not come up"; sudo grep -A40 "XFCE_LINUX_SESSION_FAILED" /tmp/serial.log || sudo tail -50 /tmp/serial.log; exit 1; }
         env:
           STEPS_ISO_OUTPUTS_PATH: ${{ steps.iso.outputs.path }}
 

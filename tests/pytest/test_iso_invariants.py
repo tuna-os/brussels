@@ -186,3 +186,15 @@ def test_iso_signing_preserves_detached_outputs_with_cosign3():
     assert '--signature "${ISO}.sig"' in verify
     assert "--certificate-oidc-issuer https://token.actions.githubusercontent.com" in verify
     assert signing.index("cosign verify-blob") < signing.index("sig_path=")
+
+
+def test_session_smoke_marker_and_gate():
+    """live-ready only proves GDM started. The session smoke marker proves
+    the autologin xfwl4 session came up, and build-iso.yml must gate on it
+    (not on the FAILED token, which only carries diagnostics)."""
+    assert "XFCE_LINUX_SESSION_READY" in CONFIGURE_LIVE
+    assert "systemctl enable session-ready.service" in CONFIGURE_LIVE
+    for proc in ("xfwl4", "xfce4-session", "xfce4-panel", "xfdesktop"):
+        assert proc in CONFIGURE_LIVE
+    workflow = (REPO / ".github" / "workflows" / "build-iso.yml").read_text()
+    assert 'grep -q "XFCE_LINUX_SESSION_READY" /tmp/serial.log ||' in workflow
