@@ -38,7 +38,7 @@ depends:
 sources:
 - kind: git_repo
   url: xfce:xfce/xfce4-settings.git
-  track: xfce4-settings-*
+  track: xfce4-settings-4.21.*
   ref: xfce4-settings-4.21.3-0-gaacc6077e924fc0947b906b5a45e1d86526bb6a1
 # git_repo does not fetch submodules; the meson build reads these protocol XMLs.
 - kind: git_module

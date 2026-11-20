@@ -22,12 +22,12 @@ depends:
 - freedesktop-sdk.bst:components/polkit.bst
 - freedesktop-sdk.bst:components/systemd.bst
 - freedesktop-sdk.bst:components/xorg-lib-x11.bst
-- freedesktop-sdk.bst:components/xorg-lib-sm.bst
-- freedesktop-sdk.bst:components/xorg-lib-ice.bst
 - gnome-build-meta.bst:core-deps/libcanberra.bst
 - gnome-build-meta.bst:core-deps/vte.bst
 - xfce-linux/libxfce4util.bst
 - xfce-linux/libxfce4ui.bst
+# libxfce4session-client-1 >= 4.21.2 (new in the 4.21.2 session release)
+- xfce-linux/xfce4-session.bst
 - xfce-linux/xfconf.bst
 - xfce-linux/exo.bst
 - xfce-linux/xfce4-panel.bst
@@ -35,5 +35,5 @@ depends:
 sources:
 - kind: git_repo
   url: xfce:xfce/thunar.git
-  track: thunar-*
-  ref: thunar-4.21.6-0-ged1b159424b2e70339c6ccdeeea0a5cfbb9ae6b7
+  track: thunar-4.21.*
+  ref: thunar-4.21.7-0-gc5787ce863e51cd9baa17c9c4978619c3a7d6e81

@@ -17,6 +17,8 @@ depends:
 - freedesktop-sdk.bst:components/xorg-lib-x11.bst
 - xfce-linux/libxfce4util.bst
 - xfce-linux/libxfce4ui.bst
+# libxfce4session-client-1 >= 4.21.2 (new in the 4.21.2 session release)
+- xfce-linux/xfce4-session.bst
 - xfce-linux/xfconf.bst
 - xfce-linux/garcon.bst
 - xfce-linux/libxfce4windowing.bst
@@ -25,8 +27,8 @@ depends:
 sources:
 - kind: git_repo
   url: xfce:xfce/xfdesktop.git
-  track: xfdesktop-*
-  ref: xfdesktop-4.21.0-0-g1c491868ca45092b6816ea5a9272f2ae6d2d788a
+  track: xfdesktop-4.21.*
+  ref: xfdesktop-4.21.1-0-g37729c473382ac6bd406b5e0742d7558060e7d43
 
 # video-backdrop needs gstreamer's gtk sink (gst-plugin-gtk), which neither
 # junction builds; meson stops with "gstreamer cannot find gst-plugin-gtk".

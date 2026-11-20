@@ -28,5 +28,5 @@ depends:
 sources:
 - kind: git_repo
   url: xfce:xfce/libxfce4ui.git
-  track: libxfce4ui-*
+  track: libxfce4ui-4.21.*
   ref: libxfce4ui-4.21.9-0-g9e5b8a1efbd887821d451bb68d582bdeee2c5e7b
