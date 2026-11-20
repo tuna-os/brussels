@@ -323,6 +323,23 @@ jobs:
           echo "Run locally: \`bats tests/bats/*.bats\`" >> "$GITHUB_STEP_SUMMARY"
           echo "Run locally: \`python3 -m pytest tests/pytest/ -v\`" >> "$GITHUB_STEP_SUMMARY"
 
+  xfce-policy:
+    # Same checks as tests/pytest/test_xfce_policy.py, plus --upstream: the
+    # shipped xfconf overrides are compared with the upstream defaults at
+    # the tags the elements pin. That part needs gitlab.xfce.org, so it is
+    # not part of Unit Tests.
+    name: XFCE Policy
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit == 'true') }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Component set, patch headers, xfconf drift
+        run: python3 scripts/check-xfce-policy.py all --upstream
+
   bst-graph:
     name: BuildStream Graph
     needs: changes

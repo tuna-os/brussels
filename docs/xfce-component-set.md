@@ -60,6 +60,32 @@ the patch is gone.
 ## How to update
 
 `track-bst-sources.yml` runs `bst source track`. It moves each element to
-the newest tag that matches its `track` pattern. Before you merge a track
-PR, make sure that all core components stay in the 4.21 series. The
-`XFCE Component Set` check in CI does this test.
+the newest tag that matches its `track` pattern. The `track` pattern of each
+4.21 component is `<name>-4.21.*`, so a 4.20.x maintenance tag cannot replace
+it.
+
+## CI checks
+
+`scripts/check-xfce-policy.py` does three checks. The `Unit Tests` job runs
+them without network access. The `XFCE Policy` job runs them with
+`--upstream`.
+
+1. Component set. Each core component must be on a 4.21 tag, or have an
+   entry in `series_exceptions` in `tests/xfce-policy.yml`. A git snapshot
+   must have an entry in `snapshot_exceptions`.
+2. Patch headers. Each patch that an XFCE element applies must have an
+   `Upstream-Status:` line and a `Reason:` line. It must also have an
+   `Upstream:` link, unless the status is `Inappropriate`.
+3. Configuration drift. Each xfconf channel file that the image ships must
+   have an entry in `config_overrides`. The entry lists each property that
+   the file sets. With `--upstream`, the check gets the upstream default
+   file at the pinned tag. It reports a property that has the same value
+   as the upstream default.
+
+This is an example of a header:
+
+```text
+Upstream: https://gitlab.xfce.org/xfce/thunar/-/merge_requests/123
+Upstream-Status: Submitted
+Reason: Fixes a crash on Wayland when the window closes.
+```

@@ -1,0 +1,34 @@
+# Inputs of scripts/check-xfce-policy.py. docs/xfce-component-set.md
+# explains the rules; this file holds only the recorded exceptions.
+
+# Core (gitlab.xfce.org xfce/ group) components that are not on the 4.21
+# series. `version` must match what the element pins, so a bump forces a
+# second look at the entry.
+series_exceptions:
+  xfce-linux/libxfce4windowing.bst:
+    version: 4.20.7
+    reason: >-
+      No 4.21 tag exists. The xfwl4 README asks for 4.20.7 or newer.
+  xfce-linux/xfwm4.bst:
+    version: 4.20.0
+    reason: >-
+      No 4.21 tag exists. Only the themes and the settings dialogs ship;
+      the xfwl4 README requires both.
+
+# Elements pinned to a commit instead of a tag.
+snapshot_exceptions:
+  xfce-linux/libwlembed.bst:
+    reason: >-
+      No release tag exists. xfce4-screensaver's Wayland back end needs it.
+
+# Patch directories outside the XFCE layer. The junction patch queues are
+# git-format-patch exports that carry upstream commit headers instead.
+patch_policy_skip:
+  - patches/freedesktop-sdk
+  - patches/gnome-build-meta
+
+# xfconf channel files the image ships, keyed by repository path. List
+# every property the file sets. `replaces_upstream` names properties that
+# must exist in the upstream default (checked with --upstream), so an
+# upstream rename shows up as drift.
+config_overrides: {}
