@@ -183,3 +183,14 @@ def test_xfwm4_ships_themes_not_the_x11_wm():
     """xfwm4 is built for its themes and settings dialogs only."""
     content = (ELEMENTS_DIR / "xfwm4.bst").read_text()
     assert 'rm -f "%{install-root}%{bindir}/xfwm4"' in content
+
+
+def test_screen_locker_is_wayland_xfce4_screensaver():
+    """The locker is upstream xfce4-screensaver with its Wayland back end only."""
+    data = yaml.safe_load((ELEMENTS_DIR / "xfce4-screensaver.bst").read_text())
+    flags = data["variables"]["meson-local"].split()
+    assert "-Dwayland=enabled" in flags
+    assert "-Dx11=disabled" in flags
+    assert "xfce-linux/libwlembed.bst" in data["depends"]
+    cluster = (ELEMENTS_DIR / "xfce-linux-cluster.bst").read_text()
+    assert "xfce-linux/xfce4-screensaver.bst" in cluster

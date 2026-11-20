@@ -10,7 +10,8 @@ component and the reason for each version that is not a 4.21 release tag.
 2. Use a 4.20.x tag only when the component has no 4.21 tag. Record the
    reason in the table.
 3. Use a git snapshot only when no tag is new enough for xfwl4. Record the
-   reason in the table. No component needs a snapshot now.
+   reason in the table. Only libwlembed uses a snapshot, because it has no
+   tags.
 4. Apps and panel plugins have their own version numbers. Use their newest
    release tag.
 5. A patch must have a header. The header gives the upstream link, the
@@ -44,6 +45,8 @@ component and the reason for each version that is not a 4.21 release tag.
 | --- | --- | --- |
 | xfce4-terminal | 1.2.0 | |
 | xfce4-notifyd | 0.9.7 | |
+| xfce4-screensaver | 4.20.2 | No 4.21 tag. Built with the Wayland back end only. |
+| libwlembed | commit 3bf51b55 | No release tag. xfce4-screensaver needs it for its Wayland back end. |
 | gtk-layer-shell | 0.10.1 | The junctions do not have it. The panel, the desktop, and the notification daemon need it on Wayland. |
 | vte (GTK 3) | 0.84.0 | gnome-build-meta builds only the GTK 4 library. xfce4-terminal needs the GTK 3 library. |
 | libwnck | 43.3 | xfwm4 needs it to build. The junctions do not have it. |
@@ -57,6 +60,33 @@ the patch is gone.
 ## How to update
 
 `track-bst-sources.yml` runs `bst source track`. It moves each element to
-the newest tag that matches its `track` pattern. Before you merge a track
-PR, make sure that all core components stay in the 4.21 series. The
-`XFCE Component Set` check in CI does this test.
+the newest tag that matches its `track` pattern. The `track` pattern of each
+4.21 component is `<name>-4.21.*`, so a 4.20.x maintenance tag cannot replace
+it.
+
+## CI checks
+
+`scripts/check-xfce-policy.py` does three checks. The `Unit Tests` job runs
+them without network access. The `XFCE Policy` job runs them with
+`--upstream`.
+
+1. Component set. Each core component must be on a 4.21 tag, or have an
+   entry in `series_exceptions` in `tests/xfce-policy.yml`. A git snapshot
+   must have an entry in `snapshot_exceptions`.
+2. Patch headers. Each patch that an XFCE element applies must have an
+   `Upstream-Status:` line and a `Reason:` line. It must also have an
+   `Upstream:` link, unless the status is `Inappropriate`.
+3. Configuration drift. Each xfconf channel file that the image ships must
+   have an entry in `config_overrides`. The entry lists the properties in
+   which the file is different from upstream. With `--upstream`, the check
+   gets the upstream default file at the pinned tag. The real differences
+   must be the same as the list. An unlisted difference is drift. A listed
+   property with the upstream value is unnecessary.
+
+This is an example of a header:
+
+```text
+Upstream: https://gitlab.xfce.org/xfce/thunar/-/merge_requests/123
+Upstream-Status: Submitted
+Reason: Fixes a crash on Wayland when the window closes.
+```

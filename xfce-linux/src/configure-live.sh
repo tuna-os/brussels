@@ -154,6 +154,46 @@ WantedBy=multi-user.target
 LREOF
 systemctl enable live-ready.service
 
+# ── Session smoke marker ──────────────────────────────────────────────────────
+# live-ready only proves that GDM started. This unit waits for the autologin
+# session to come up (xfwl4, xfce4-session, xfce4-panel, xfdesktop running
+# as liveuser) and writes XFCE_LINUX_SESSION_READY to the serial console, or
+# XFCE_LINUX_SESSION_FAILED with the process list after 4 minutes.
+# build-iso.yml gates on the token.
+cat > /usr/libexec/xfce-linux-session-check << 'SCEOF'
+#!/bin/sh
+for _ in $(seq 1 48); do
+  missing=""
+  for p in xfwl4 xfce4-session xfce4-panel xfdesktop; do
+    pgrep -u liveuser -x "$p" >/dev/null || missing="$missing $p"
+  done
+  if [ -z "$missing" ]; then
+    echo XFCE_LINUX_SESSION_READY
+    exit 0
+  fi
+  sleep 5
+done
+echo "XFCE_LINUX_SESSION_FAILED missing:$missing"
+ps -u liveuser -o pid=,comm= || true
+exit 1
+SCEOF
+chmod 0755 /usr/libexec/xfce-linux-session-check
+cat > /usr/lib/systemd/system/session-ready.service << 'SREOF'
+[Unit]
+Description=Live XFCE session smoke marker
+After=live-ready.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/xfce-linux-session-check
+StandardOutput=tty
+TTYPath=/dev/ttyS0
+
+[Install]
+WantedBy=multi-user.target
+SREOF
+systemctl enable session-ready.service
+
 # fisherman scratch space
 mkdir -p /var/fisherman-tmp
 
