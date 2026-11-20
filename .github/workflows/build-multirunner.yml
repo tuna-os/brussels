@@ -29,6 +29,11 @@ env:
   IMAGE_NAME: xfce-linux
   IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
   BST_TARGET: oci/xfce-linux.bst
+  # Variant images laid over the base image in build_final, each from
+  # oci/layers/brussels-<variant>.bst + variants/<variant>/Containerfile
+  # and published as ghcr.io/<owner>/brussels-<variant> (docs/winblues.md).
+  # Space-separated; add a variant here to build and publish it.
+  VARIANTS: winblues
   BST2_IMAGE: registry.gitlab.com/freedesktop-sdk/infrastructure/freedesktop-sdk-docker-images/bst2:64eb0b4930d57a92710822898fb73af6cc1ae35d
 
 concurrency:
@@ -255,6 +260,16 @@ jobs:
           mkdir -p logs
           timeout 300m just bst --log-file /src/logs/build-final.log build ${NEEDS_MULTIRUNNER_OUTPUTS_FINAL_TARGET}
 
+      # The variant layers are small file trees outside the base graph, so
+      # they are built here rather than in the chunks.
+      - name: Build variant layers
+        env:
+          BST_FLAGS: --no-interactive --config /src/buildstream-ci.conf
+        run: |
+          for v in ${VARIANTS}; do
+            timeout 60m just bst --log-file "/src/logs/build-${v}.log" build "oci/layers/brussels-${v}.bst"
+          done
+
       - name: Check out the artifact and free the CAS
         env:
           BST_FLAGS: --no-interactive --config /src/buildstream-ci.conf
@@ -271,6 +286,11 @@ jobs:
           just bst artifact checkout \
             "${NEEDS_MULTIRUNNER_OUTPUTS_FINAL_TARGET}" --directory /src/.build-out
           du -sh .build-out
+          for v in ${VARIANTS}; do
+            rm -rf ".build-out-${v}"
+            just bst artifact checkout "oci/layers/brussels-${v}.bst" --directory "/src/.build-out-${v}"
+            du -sh ".build-out-${v}"
+          done
           # chunkify needs the per-element file map, which is read from the
           # CAS, so generate it now, before the CAS is deleted below. `just
           # export` picks it up via FILEMAP_PREGENERATED. Without this every
@@ -308,6 +328,18 @@ jobs:
         run: |
           sudo podman images
           just lint
+
+      - name: Build + lint variant images
+        env:
+          OCI_IMAGE_REVISION: ${{ github.sha }}
+          OCI_IMAGE_VERSION: latest
+          OCI_IMAGE_CREATED: ${{ steps.timestamp.outputs.created }}
+          EXPORT_REUSE_CHECKOUT: '1'
+        run: |
+          for v in ${VARIANTS}; do
+            just export-variant "$v"
+            BUILD_IMAGE_NAME="brussels-${v}" just lint
+          done
 
       - name: Upload build logs
         if: always()
@@ -355,6 +387,30 @@ jobs:
         env:
           STEPS_EXPORT_OUTPUTS_IMAGE_REF: ${{ steps.export.outputs.image_ref }}
 
+      - name: Push variant images to GHCR
+        id: push_variants
+        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+        run: |
+          DATE_TAG=$(date -u +%Y%m%d)
+          if [ "${GITHUB_REF}" = "refs/heads/stable" ]; then
+            TAGS="stable stable-${DATE_TAG} ${GITHUB_SHA}"
+          else
+            TAGS="latest nightly nightly-${DATE_TAG} ${GITHUB_SHA}"
+          fi
+          : > "${RUNNER_TEMP}/variant-digests"
+          for v in ${VARIANTS}; do
+            name="brussels-${v}"
+            for tag in $TAGS; do
+              sudo podman tag "localhost/${name}:latest" "${IMAGE_REGISTRY}/${name}:${tag}"
+              for i in 1 2 3; do
+                sudo podman push "${IMAGE_REGISTRY}/${name}:${tag}" && break
+                echo "Retry $i..."; sleep 5
+              done
+            done
+            digest=$(sudo podman inspect "${IMAGE_REGISTRY}/${name}:${GITHUB_SHA}" --format '{{.Digest}}')
+            echo "${IMAGE_REGISTRY}/${name}@${digest}" >> "${RUNNER_TEMP}/variant-digests"
+          done
+
       - name: Install cosign
         if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
         uses: sigstore/cosign-installer@v4.1.3
@@ -383,6 +439,16 @@ jobs:
         run: |
           cosign sign -y --key env://COSIGN_PRIVATE_KEY \
             "${IMAGE_REGISTRY}/${{ env.IMAGE_NAME }}@${STEPS_PUSH_OUTPUTS_DIGEST}"
+
+      - name: Sign variant images (cosign, key)
+        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) && env.COSIGN_PRIVATE_KEY != '' }}
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          COSIGN_PASSWORD: ${{ secrets.SIGNING_SECRET_PASSWORD }}
+        run: |
+          while read -r ref; do
+            cosign sign -y --key env://COSIGN_PRIVATE_KEY "$ref"
+          done < "${RUNNER_TEMP}/variant-digests"
 
       - name: Warn when the image went out unsigned
         if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) && env.COSIGN_PRIVATE_KEY == '' }}
@@ -422,3 +488,6 @@ jobs:
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Target**: \`${BST_TARGET}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Image**: \`${IMAGE_REGISTRY}/${IMAGE_NAME}:latest\`" >> $GITHUB_STEP_SUMMARY
+          for v in ${VARIANTS}; do
+            echo "- **Variant**: \`${IMAGE_REGISTRY}/brussels-${v}:latest\`" >> $GITHUB_STEP_SUMMARY
+          done

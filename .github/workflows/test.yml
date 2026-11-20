@@ -357,6 +357,10 @@ jobs:
       - name: Validate full element graph
         run: |
           bst --no-interactive show --deps all --format "%{name} %{state}" oci/xfce-linux.bst > /tmp/graph.txt
+          # Variant layers are built beside the base graph, not inside it.
+          for layer in elements/oci/layers/brussels-*.bst; do
+            bst --no-interactive show --deps all --format "%{name} %{state}" "${layer#elements/}" >> /tmp/graph.txt
+          done
           wc -l /tmp/graph.txt
 
   just-parse:

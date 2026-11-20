@@ -79,3 +79,6 @@ files/xfce-binaries/
 files/filemap.json
 # Fakecap privilege manifest — generated alongside filemap.json (#17)
 files/fakecap-manifest.tsv
+
+# Variant layer checkouts (just export-variant)
+.build-out-*/
