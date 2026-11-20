@@ -12,6 +12,7 @@ Validates that:
 
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 import yaml
 
 REPO = Path(__file__).resolve().parents[2]
@@ -93,7 +94,7 @@ def test_xfce_alias_in_aliases_yml():
     data = yaml.safe_load(aliases_file.read_text())
     assert "aliases" in data
     assert "xfce" in data["aliases"], "xfce alias missing from include/aliases.yml"
-    assert "gitlab.xfce.org" in data["aliases"]["xfce"]
+    assert urlparse(data["aliases"]["xfce"]).hostname == "gitlab.xfce.org"
 
 
 def test_no_james_symlink_hack_in_stack():
