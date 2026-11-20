@@ -27,8 +27,11 @@ patch_policy_skip:
   - patches/freedesktop-sdk
   - patches/gnome-build-meta
 
-# xfconf channel files the image ships, keyed by repository path. List
-# every property the file sets. `replaces_upstream` names properties that
-# must exist in the upstream default (checked with --upstream), so an
-# upstream rename shows up as drift.
+# xfconf channel files the image ships, keyed by repository path. `properties`
+# lists the properties (fnmatch patterns allowed) in which the file differs
+# from upstream. A file that replaces an upstream system default
+# (xsettings.xml, xfce4-session.xml) carries the unchanged upstream
+# properties too; any other file must declare everything it sets. The
+# XFCE Policy job (--upstream) checks that the real difference against the
+# upstream default at the pinned tag equals this list.
 config_overrides: {}

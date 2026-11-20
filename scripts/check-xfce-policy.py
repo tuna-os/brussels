@@ -20,12 +20,11 @@ config
     Every xfconf channel file the image ships
     (``**/xfce-perchannel-xml/*.xml`` under ``files/`` and the variant
     directories) is declared in ``tests/xfce-policy.yml`` under
-    ``config_overrides``, and declares each property it sets. With
-    ``--upstream`` the declared properties are also compared with the
+    ``config_overrides``, which lists the properties in which it differs
+    from upstream. With ``--upstream`` the file is compared with the
     upstream default for that channel, fetched from gitlab.xfce.org at the
-    tag the image pins: a declared property equal to the upstream default
-    is reported as dead weight, and an upstream default file that the
-    override no longer matches is reported as drift.
+    tag the image pins: a difference that is not declared is drift, and a
+    declared property equal to upstream is dead weight.
 
 Exit status is 1 when any check reports a violation.
 """
@@ -33,6 +32,7 @@ Exit status is 1 when any check reports a violation.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import os
 import re
 import sys
@@ -54,15 +54,18 @@ DESCRIBE_REF = re.compile(r"^(?P<tag>.+)-(?P<n>\d+)-g(?P<sha>[0-9a-f]{40})$")
 BARE_SHA = re.compile(r"^[0-9a-f]{40}$")
 VERSION = re.compile(r"(\d+\.\d+(?:\.\d+)*)")
 
-# Channel -> (component element, path of the upstream default in its repo,
-# format). Channels with no upstream default file are not listed; every
-# property they set is an addition and must be declared.
+# Channel -> (component element, path of the upstream default in its
+# repository, format, whole_file). whole_file is True when upstream installs
+# that file as the system xfconf default, so an image file at the same path
+# replaces it and a property missing from the image file is a removal.
+# xfce4-panel is not listed: its default layout is not an xfconf channel
+# file, so a shipped panel channel is a whole new layout and every property
+# it sets must be declared.
 UPSTREAM_DEFAULTS = {
-    "xsettings": ("xfce4-settings", "xfsettingsd/xsettings.xml", "xml"),
-    "xfce4-panel": ("xfce4-panel", "migrate/default.xml", "xml"),
-    "xfce4-session": ("xfce4-session", "settings/xfce4-session.xml", "xml"),
+    "xsettings": ("xfce4-settings", "xfsettingsd/xsettings.xml", "xml", True),
+    "xfce4-session": ("xfce4-session", "settings/xfce4-session.xml", "xml", True),
     # xfwl4 reads the xfwm4 channel; its built-in defaults are this file.
-    "xfwm4": ("xfwl4", "resources/defaults", "keyvalue"),
+    "xfwm4": ("xfwl4", "resources/defaults", "keyvalue", False),
 }
 
 
@@ -253,44 +256,65 @@ def fetch_upstream(component: str, file: str) -> str:
         return resp.read().decode()
 
 
+def declared(prop: str, patterns) -> bool:
+    return any(fnmatch.fnmatchcase(prop, pat) for pat in patterns)
+
+
 def check_config(policy: dict, upstream: bool) -> list[str]:
+    """Shipped xfconf channel files against their config_overrides entry.
+
+    An entry lists the properties in which the file differs from upstream
+    (fnmatch patterns are allowed). Offline, every property the file sets
+    must be declared, except for whole-file replacements of an upstream
+    default, where the unchanged upstream properties are carried along.
+    With upstream=True the actual difference against the upstream default
+    at the pinned tag must equal the declared set: an undeclared
+    difference is drift, a declared property equal to upstream is dead.
+    """
     errors = []
-    declared = policy.get("config_overrides") or {}
+    overrides = policy.get("config_overrides") or {}
     shipped = {f.relative_to(REPO).as_posix(): f for f in channel_files()}
-    for rel in sorted(set(declared) - set(shipped)):
+    for rel in sorted(set(overrides) - set(shipped)):
         errors.append(f"config_overrides: {rel} is declared but not shipped")
     for rel, path in sorted(shipped.items()):
-        entry = declared.get(rel)
+        entry = overrides.get(rel)
         if entry is None:
             errors.append(f"{rel}: shipped xfconf channel is not declared in config_overrides")
             continue
         if not entry.get("reason"):
             errors.append(f"config_overrides: {rel} has no reason")
-        props = flatten_xml(path.read_text())
-        listed = set(entry.get("properties") or [])
-        for p in sorted(set(props) - listed):
-            errors.append(f"{rel}: sets {p} but config_overrides does not declare it")
-        for p in sorted(listed - set(props)):
-            errors.append(f"config_overrides: {rel} declares {p}, which the file does not set")
-        if not upstream:
+        text = path.read_text()
+        props = flatten_xml(text)
+        patterns = entry.get("properties") or []
+        channel = ET.fromstring(text).get("name")
+        base_spec = UPSTREAM_DEFAULTS.get(channel)
+        whole_file = bool(base_spec and base_spec[3])
+        for pat in patterns:
+            if not any(fnmatch.fnmatchcase(p, pat) for p in props) and not whole_file:
+                errors.append(f"config_overrides: {rel} declares {pat}, which the file does not set")
+        if not whole_file:
+            for p in sorted(props):
+                if not declared(p, patterns):
+                    errors.append(f"{rel}: sets {p} but config_overrides does not declare it")
+        if not upstream or base_spec is None:
             continue
-        channel = ET.fromstring(path.read_text()).get("name")
-        if channel not in UPSTREAM_DEFAULTS:
-            continue
-        component, file, fmt = UPSTREAM_DEFAULTS[channel]
+        component, file, fmt, _ = base_spec
         try:
-            text = fetch_upstream(component, file)
+            base_text = fetch_upstream(component, file)
         except (urllib.error.URLError, LookupError) as exc:
             errors.append(f"{rel}: cannot fetch the upstream {channel} default ({exc})")
             continue
-        base = flatten_xml(text) if fmt == "xml" else flatten_keyvalue(text)
-        for p, value in sorted(props.items()):
-            if p in base and base[p] == value:
-                errors.append(f"{rel}: {p} = {value!r} is the upstream default; drop it")
-        for p in sorted(entry.get("replaces_upstream") or []):
-            if p not in base:
-                errors.append(f"{rel}: declares that it replaces upstream {p}, "
-                              f"which {component} {file} no longer has (upstream drift)")
+        base = flatten_xml(base_text) if fmt == "xml" else flatten_keyvalue(base_text)
+        keys = set(props) | (set(base) if whole_file else set())
+        diff = {p for p in keys if props.get(p) != base.get(p)}
+        for p in sorted(diff):
+            if not declared(p, patterns):
+                errors.append(f"{rel}: {p} = {props.get(p)!r} differs from upstream "
+                              f"{component} {file} ({base.get(p)!r}) but is not declared (drift)")
+        for p in sorted(set(props) - diff):
+            if declared(p, patterns):
+                errors.append(f"{rel}: {p} = {props[p]!r} is the upstream default; "
+                              "drop it from config_overrides")
     return errors
 
 

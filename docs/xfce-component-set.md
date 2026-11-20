@@ -77,10 +77,11 @@ them without network access. The `XFCE Policy` job runs them with
    `Upstream-Status:` line and a `Reason:` line. It must also have an
    `Upstream:` link, unless the status is `Inappropriate`.
 3. Configuration drift. Each xfconf channel file that the image ships must
-   have an entry in `config_overrides`. The entry lists each property that
-   the file sets. With `--upstream`, the check gets the upstream default
-   file at the pinned tag. It reports a property that has the same value
-   as the upstream default.
+   have an entry in `config_overrides`. The entry lists the properties in
+   which the file is different from upstream. With `--upstream`, the check
+   gets the upstream default file at the pinned tag. The real differences
+   must be the same as the list. An unlisted difference is drift. A listed
+   property with the upstream value is unnecessary.
 
 This is an example of a header:
 

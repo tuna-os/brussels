@@ -81,3 +81,32 @@ def test_xfconf_flatten():
         "/general/theme": "Default",
         "/general/button_layout": "O|SHMC",
     }
+
+
+def test_config_drift_against_upstream(monkeypatch, tmp_path):
+    """--upstream: an undeclared difference is drift, a declared no-op is dead."""
+    chan = tmp_path / "files" / "x" / "xfce-perchannel-xml" / "xsettings.xml"
+    chan.parent.mkdir(parents=True)
+    chan.write_text(
+        '<channel name="xsettings" version="1.0"><property name="Net" type="empty">'
+        '<property name="ThemeName" type="string" value="Chicago95"/>'
+        '<property name="IconThemeName" type="string" value="Adwaita"/>'
+        '<property name="CursorBlink" type="bool" value="false"/>'
+        "</property></channel>"
+    )
+    upstream = (
+        '<channel name="xsettings" version="1.0"><property name="Net" type="empty">'
+        '<property name="ThemeName" type="string" value="Adwaita"/>'
+        '<property name="IconThemeName" type="string" value="Adwaita"/>'
+        '<property name="CursorBlink" type="bool" value="true"/>'
+        "</property></channel>"
+    )
+    monkeypatch.setattr(policy_mod, "REPO", tmp_path)
+    monkeypatch.setattr(policy_mod, "channel_files", lambda: [chan])
+    monkeypatch.setattr(policy_mod, "fetch_upstream", lambda component, file: upstream)
+    rel = "files/x/xfce-perchannel-xml/xsettings.xml"
+    policy = {"config_overrides": {rel: {"reason": "r", "properties": ["/Net/ThemeName", "/Net/IconThemeName"]}}}
+    errors = policy_mod.check_config(policy, upstream=True)
+    assert any("/Net/CursorBlink" in e and "drift" in e for e in errors), errors
+    assert any("/Net/IconThemeName" in e and "upstream default" in e for e in errors), errors
+    assert not any("/Net/ThemeName" in e for e in errors), errors
