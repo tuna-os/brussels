@@ -28,7 +28,7 @@ depends:
 sources:
 - kind: git_repo
   url: xfce:xfce/xfce4-power-manager.git
-  track: xfce4-power-manager-*
+  track: xfce4-power-manager-4.21.*
   ref: xfce4-power-manager-4.21.1-0-gf6e83d2c95a7adf58cf62b5b69c50ac11a51a2d9
 # git_repo does not fetch submodules; the meson build reads these protocol XMLs.
 - kind: git_module

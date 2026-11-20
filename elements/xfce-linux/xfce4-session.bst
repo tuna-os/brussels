@@ -5,6 +5,13 @@ description: |
 build-depends:
 - freedesktop-sdk.bst:public-stacks/buildsystem-meson.bst
 - freedesktop-sdk.bst:components/gettext.bst
+# 4.21.2 builds libxfce4session-client with GObject introspection and Vala
+# bindings, and generates Wayland protocol code (wayland-scanner).
+- freedesktop-sdk.bst:components/gobject-introspection.bst
+- freedesktop-sdk.bst:components/vala.bst
+- freedesktop-sdk.bst:components/wayland-protocols.bst
+# meson.build: find_program('sed', required: true)
+- freedesktop-sdk.bst:components/sed.bst
 - xfce-linux/xfce4-dev-tools.bst
 
 depends:
@@ -12,6 +19,7 @@ depends:
 - freedesktop-sdk.bst:components/gtk3.bst
 - freedesktop-sdk.bst:components/glib.bst
 - freedesktop-sdk.bst:components/polkit.bst
+- freedesktop-sdk.bst:components/wayland.bst
 - freedesktop-sdk.bst:components/xorg-lib-x11.bst
 - freedesktop-sdk.bst:components/xorg-lib-sm.bst
 - freedesktop-sdk.bst:components/xorg-lib-ice.bst
@@ -24,8 +32,8 @@ depends:
 sources:
 - kind: git_repo
   url: xfce:xfce/xfce4-session.git
-  track: xfce4-session-*
-  ref: xfce4-session-4.21.1-0-g5681e8b24d192ff572a52f80e9381d6543dfd2e0
+  track: xfce4-session-4.21.*
+  ref: xfce4-session-4.21.2-0-g408e2dc9784c687a5728efa006d4d9dd22bc8243
 
 # X11 session management needs iceauth (find_program, required), which
 # neither junction provides. This image runs xfwl4 (Wayland), so build

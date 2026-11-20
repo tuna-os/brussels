@@ -22,5 +22,5 @@ depends:
 sources:
 - kind: git_repo
   url: xfce:xfce/tumbler.git
-  track: tumbler-*
+  track: tumbler-4.21.*
   ref: tumbler-4.21.1-0-g821c7fe0a4c99c424f688116143e3d5757b35e5f

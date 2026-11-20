@@ -16,5 +16,5 @@ depends:
 sources:
 - kind: git_repo
   url: xfce:xfce/libxfce4util.git
-  track: libxfce4util-*
-  ref: libxfce4util-4.20.1-0-gfe1b3c88e4e0cb45eb490d11dbc7f9cdd83664d9
+  track: libxfce4util-4.21.*
+  ref: libxfce4util-4.21.0-0-gaf5f49d889cb55483c36ca8b20f11913da26b325

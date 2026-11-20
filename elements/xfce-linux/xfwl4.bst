@@ -32,7 +32,7 @@ depends:
 sources:
 - kind: git_repo
   url: xfce:xfce/xfwl4.git
-  track: xfwl4-*
+  track: xfwl4-4.21.*
   ref: xfwl4-4.21.1-0-g71d2fd0085d14131620b35ff361d99ce9b9b2cf8
   directory: xfwl4
 - kind: git_repo

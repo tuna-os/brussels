@@ -19,5 +19,5 @@ depends:
 sources:
 - kind: git_repo
   url: xfce:xfce/xfconf.git
-  track: xfconf-*
+  track: xfconf-4.21.*
   ref: xfconf-4.21.2-0-ga6f0a7aa9073f9d8a0935cee73c0da52b6e49660

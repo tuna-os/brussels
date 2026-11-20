@@ -19,5 +19,5 @@ depends:
 sources:
 - kind: git_repo
   url: xfce:xfce/xfce4-appfinder.git
-  track: xfce4-appfinder-*
+  track: xfce4-appfinder-4.21.*
   ref: xfce4-appfinder-4.21.1-0-g1ce6be94d8bc0abdd8fd565a55133a1be90496b8

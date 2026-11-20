@@ -19,6 +19,8 @@ depends:
 - freedesktop-sdk.bst:components/xorg-lib-xext.bst
 - xfce-linux/libxfce4util.bst
 - xfce-linux/libxfce4ui.bst
+# libxfce4session-client-1 >= 4.21.2 (new in the 4.21.2 session release)
+- xfce-linux/xfce4-session.bst
 - xfce-linux/xfconf.bst
 - xfce-linux/garcon.bst
 - xfce-linux/libxfce4windowing.bst
@@ -27,8 +29,8 @@ depends:
 sources:
 - kind: git_repo
   url: xfce:xfce/xfce4-panel.git
-  track: xfce4-panel-*
-  ref: xfce4-panel-4.21.2-0-gbf113e488df7dfd992cc734c5662330b9857495c
+  track: xfce4-panel-4.21.*
+  ref: xfce4-panel-4.21.3-0-g76eac3b790ba72481f6e39f88e51589f38605efb
 
 # Fail the build instead of silently dropping Wayland support: these
 # features are "auto" upstream and switch off when gtk-layer-shell is absent.

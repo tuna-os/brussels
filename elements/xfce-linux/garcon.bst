@@ -18,5 +18,5 @@ depends:
 sources:
 - kind: git_repo
   url: xfce:xfce/garcon.git
-  track: garcon-*
+  track: garcon-4.21.*
   ref: garcon-4.21.0-0-g8ffd94b7c6a392501ed66e4c44dcf3b539079caa
