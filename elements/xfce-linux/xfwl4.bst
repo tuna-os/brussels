@@ -38,7 +38,7 @@ sources:
 - kind: git_repo
   url: xfce:xfce/xfce-wayland-protocols.git
   track: main
-  ref: 55dbf3e3d2a91b525c528c0dd4c1a7805a99364b
+  ref: cd309d60870853197a0057a3dec16102a3959311
   directory: xfwl4/resources/xfce-wayland-protocols
 - kind: cargo2
   url: crates:crates
@@ -46,20 +46,6 @@ sources:
     https://github.com/: 'github:'
   cargo-lock: xfwl4/Cargo.lock
   ref:
-  - kind: git
-    name: smithay
-    version: 0.7.0
-    repo: github:smithay/smithay
-    commit: 0a29aecf9e07a2227712ab470b0ab0ee56752272
-    query:
-      rev: 0a29aecf9e07a2227712ab470b0ab0ee56752272
-  - kind: git
-    name: smithay-drm-extras
-    version: 0.1.0
-    repo: github:smithay/smithay
-    commit: 0a29aecf9e07a2227712ab470b0ab0ee56752272
-    query:
-      rev: 0a29aecf9e07a2227712ab470b0ab0ee56752272
   - kind: registry
     name: adler2
     version: 2.0.1
@@ -1104,10 +1090,24 @@ sources:
     name: smallvec
     version: 1.15.1
     sha: 67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03
+  - kind: git
+    commit: 0a29aecf9e07a2227712ab470b0ab0ee56752272
+    repo: github:smithay/smithay
+    query:
+      rev: 0a29aecf9e07a2227712ab470b0ab0ee56752272
+    name: smithay
+    version: 0.7.0
   - kind: registry
     name: smithay-client-toolkit
     version: 0.20.0
     sha: 0512da38f5e2b31201a93524adb8d3136276fa4fe4aafab4e1f727a82b534cc0
+  - kind: git
+    commit: 0a29aecf9e07a2227712ab470b0ab0ee56752272
+    repo: github:smithay/smithay
+    query:
+      rev: 0a29aecf9e07a2227712ab470b0ab0ee56752272
+    name: smithay-drm-extras
+    version: 0.1.0
   - kind: registry
     name: smol_str
     version: 0.3.6
@@ -1636,7 +1636,6 @@ sources:
     name: zmij
     version: 1.0.21
     sha: b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa
-
 config:
   build-commands:
   - |
