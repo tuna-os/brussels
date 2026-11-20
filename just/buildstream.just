@@ -130,3 +130,35 @@ clean:
 build-containerfile $image_name=image_name:
     sudo podman build --security-opt label=type:unconfined_t --squash-all -t "${image_name}:latest" .
 
+
+# ── Variants ──────────────────────────────────────────────────────────
+# Build a variant image on top of the exported base image. A variant is a
+# file tree (oci/layers/brussels-<variant>.bst) laid over {{image_name}}
+# by variants/<variant>/Containerfile; see docs/winblues.md.
+# With EXPORT_REUSE_CHECKOUT=1 (CI), .build-out-<variant> is already checked out.
+[group('build')]
+export-variant variant="winblues":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    SUDO_CMD=""
+    if [ "$(id -u)" -ne 0 ]; then
+        SUDO_CMD="sudo"
+    fi
+    out=".build-out-{{variant}}"
+    if [ "${EXPORT_REUSE_CHECKOUT:-0}" != "1" ]; then
+        just bst build oci/layers/brussels-{{variant}}.bst
+        rm -rf "$out"
+        just bst artifact checkout oci/layers/brussels-{{variant}}.bst --directory "/src/$out"
+    fi
+    test -d "$out"
+    LABEL_ARGS=()
+    [ -n "${OCI_IMAGE_CREATED}" ] && LABEL_ARGS+=(--label "org.opencontainers.image.created=${OCI_IMAGE_CREATED}")
+    [ -n "${OCI_IMAGE_REVISION}" ] && LABEL_ARGS+=(--label "org.opencontainers.image.revision=${OCI_IMAGE_REVISION}")
+    [ -n "${OCI_IMAGE_VERSION}" ] && LABEL_ARGS+=(--label "org.opencontainers.image.version=${OCI_IMAGE_VERSION}")
+    $SUDO_CMD podman build --pull=never --security-opt label=type:unconfined_t \
+        --build-arg "BASE_IMAGE=localhost/{{image_name}}:{{image_tag}}" \
+        "${LABEL_ARGS[@]}" \
+        -f variants/{{variant}}/Containerfile \
+        -t "brussels-{{variant}}:{{image_tag}}" "$out"
+    rm -rf "$out"
+    echo "==> Variant image loaded as brussels-{{variant}}:{{image_tag}}"

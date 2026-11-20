@@ -34,4 +34,38 @@ patch_policy_skip:
 # properties too; any other file must declare everything it sets. The
 # XFCE Policy job (--upstream) checks that the real difference against the
 # upstream default at the pinned tag equals this list.
-config_overrides: {}
+config_overrides:
+  files/winblues/etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml:
+    reason: >-
+      brussels-winblues: Chicago95 GTK, icon and cursor themes. The rest of
+      the file is xfce4-settings' own xsettings.xml, which this replaces.
+    properties:
+      - /Net/ThemeName
+      - /Net/IconThemeName
+      - /Gtk/CursorThemeName
+  files/winblues/etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml:
+    reason: >-
+      brussels-winblues: Chicago95 window decorations (xfwl4 reads the
+      xfwm4 channel), and no drop shadows, which the look does not have.
+    properties:
+      - /general/theme
+      - /general/show_frame_shadow
+      - /general/show_dock_shadow
+  files/winblues/etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-notifyd.xml:
+    reason: >-
+      brussels-winblues: Chicago95 notification theme, shown at the bottom
+      right above the panel, fully opaque.
+    properties:
+      - /theme
+      - /notify-location
+      - /initial-opacity
+  files/winblues/etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml:
+    reason: >-
+      brussels-winblues: one bottom panel with a Start menu, show-desktop,
+      task list, tray and clock, in the layout of blue95, built only from
+      plugins that xfce4-panel itself ships.
+    properties:
+      - /configver
+      - /panels
+      - /panels/*
+      - /plugins/*

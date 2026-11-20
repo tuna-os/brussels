@@ -1,0 +1,17 @@
+# brussels-winblues: the xfce-linux image plus the Chicago95 look.
+#
+# The build context is the checkout of oci/layers/brussels-winblues.bst
+# (`just export-variant winblues`), so this only adds that file tree on top
+# of the already exported base image. See docs/winblues.md.
+ARG BASE_IMAGE=localhost/xfce-linux:latest
+FROM ${BASE_IMAGE}
+
+COPY . /
+
+# Mark the variant in os-release so bug reports and fastfetch can tell the
+# two images apart. Same OS, so ID and VERSION_ID stay.
+RUN sed -i -e '/^VARIANT=/d' -e '/^VARIANT_ID=/d' /usr/lib/os-release \
+    && printf 'VARIANT="winblues"\nVARIANT_ID=winblues\n' >> /usr/lib/os-release
+
+LABEL org.opencontainers.image.title="brussels-winblues" \
+      org.opencontainers.image.description="XFCE Linux (xfwl4, Wayland) with the Chicago95 theme"
