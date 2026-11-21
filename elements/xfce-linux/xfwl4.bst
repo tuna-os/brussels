@@ -38,7 +38,7 @@ sources:
 - kind: git_repo
   url: xfce:xfce/xfce-wayland-protocols.git
   track: main
-  ref: cd309d60870853197a0057a3dec16102a3959311
+  ref: c1f76fca47d9c5b4b3bd7bc4bf6cd776af8fd4fe
   directory: xfwl4/resources/xfce-wayland-protocols
 - kind: cargo2
   url: crates:crates
