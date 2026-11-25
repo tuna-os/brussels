@@ -4,6 +4,18 @@ How Brussels gets from `.bst` elements to a bootable, installable live ISO —
 and how to debug it when it breaks. (Same architecture as tuna-os/tromso;
 patterns originate in projectbluefin/dakota and dakota-iso.)
 
+## Secure Boot layer and the image installer
+
+The publish path of `build-multirunner.yml` adds the Secure Boot files to the
+image as one layer, before the variant images and the push. BuildStream does
+not sign with the tunaOS key. Read [Secure Boot](secure-boot.md) for the
+chain, the limits and the test state.
+
+`image-installer.yml` calls the 7-stage installer workflow of tuna-os/tunaOS
+for the cell `brussels:xfce`. It is dispatch-only, and it does not publish by
+default. The ISO workflows below stay the release path
+([#315](https://github.com/tuna-os/brussels/issues/315)).
+
 ## Build chain
 
 ```

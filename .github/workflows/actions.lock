@@ -31,6 +31,7 @@ workflows:
         - 'actions/checkout@v7.0.1'
         - 'github/codeql-action@v4.39.3'
     '.github/workflows/drop-bot-review-requests.yml': []
+    '.github/workflows/image-installer.yml': []
     '.github/workflows/pr-build-changed.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/upload-artifact@v7.0.2'

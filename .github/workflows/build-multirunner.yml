@@ -341,6 +341,53 @@ jobs:
           sudo podman images
           just lint
 
+      # Secure Boot (docs/secure-boot.md, tuna-os/brussels#315). The key must
+      # not enter BuildStream: the CAS archives are public. So the publish
+      # path adds the signed files as one layer, after the build and before
+      # the variant images and the push. Each later step (variants, push,
+      # cosign, promotion) then sees an image that has the layer. Same
+      # condition as the push: a pull request and a branch run never reach
+      # these steps.
+      - name: Checkout the Secure Boot tooling
+        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: tuna-os/tunaOS
+          # tuna-os/tunaOS#4963 (installer-medium/secure-boot). Move this
+          # commit only with a review of ci-sign.sh and image/sign-image.sh.
+          ref: 71611debb0e3b859d2826c30bc6c128046d56c84
+          path: .tunaos-secure-boot
+          sparse-checkout: installer-medium/secure-boot
+          persist-credentials: false
+
+      - name: Add the Secure Boot layer
+        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+        env:
+          IMAGE_REF: ${{ steps.export.outputs.image_ref }}
+          TUNAOS_SB_KEY: ${{ secrets.TUNAOS_SB_KEY }}
+          TUNAOS_SB_CERT: ${{ secrets.TUNAOS_SB_CERT }}
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends sbsigntool rpm2cpio cpio
+          # A publish with no key must fail: an image with no signature, or
+          # with the public test signature of gnome-build-meta, must not go
+          # out. sign-image.sh removes that test signature from systemd-boot.
+          sudo --preserve-env=TUNAOS_SB_KEY,TUNAOS_SB_CERT \
+            .tunaos-secure-boot/installer-medium/secure-boot/image/sign-image.sh \
+            "localhost/${IMAGE_REF}" "localhost/${IMAGE_REF}"
+
+      - name: Verify the Secure Boot layer
+        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+        env:
+          IMAGE_REF: ${{ steps.export.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          # No key here: sbverify against the committed tunaOS certificate,
+          # and no boot file may verify against the public test certificate.
+          sudo .tunaos-secure-boot/installer-medium/secure-boot/image/verify-image.sh \
+            "localhost/${IMAGE_REF}" \
+            --reject-cert tests/fixtures/secure-boot/gnome-build-meta-snakeoil-vendor.crt
+
       - name: Build + lint variant images
         env:
           OCI_IMAGE_REVISION: ${{ github.sha }}
@@ -351,6 +398,17 @@ jobs:
           for v in ${VARIANTS}; do
             just export-variant "$v"
             BUILD_IMAGE_NAME="brussels-${v}" just lint
+          done
+
+      # A variant is a layer over the base image, so it must keep the files.
+      - name: Verify the Secure Boot layer of the variant images
+        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+        run: |
+          set -euo pipefail
+          for v in ${VARIANTS}; do
+            sudo .tunaos-secure-boot/installer-medium/secure-boot/image/verify-image.sh \
+              "localhost/brussels-${v}:latest" \
+              --reject-cert tests/fixtures/secure-boot/gnome-build-meta-snakeoil-vendor.crt
           done
 
       - name: Upload build logs
