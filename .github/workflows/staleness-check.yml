@@ -2,14 +2,14 @@ name: Build Staleness Check
 
 # Nothing was watching freshness, so nothing noticed.
 #
-# ghcr.io/tuna-os/xfce-linux:latest was last published around 2026-07-19 and
+# ghcr.io/tuna-os/xfce-linux:latest (now ghcr.io/tuna-os/brussels) was last published around 2026-07-19 and
 # the gap was found by hand seven weeks later, while chasing why every PR's
 # LUKS/Plain E2E reported `manifest unknown` (#152, #145, #135, #159). The
 # multi-runner build is deliberately retry-and-converge — chunk budgets are
 # soft and partial CAS is salvaged — so a pipeline that never publishes looks
 # identical to one that is still converging. No single run fails loudly.
 #
-# This asserts the outcome instead of the runs: if no `Build xfce-linux
+# This asserts the outcome instead of the runs: if no `Build Brussels
 # (Multi-Runner)` run on main has succeeded in STALE_HOURS, say so in an
 # issue. Ported from tuna-os/tromso, which added it for the same reason.
 
@@ -37,7 +37,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           updated_at=$(gh run list --repo "${{ github.repository }}" \
-            --workflow "Build xfce-linux (Multi-Runner)" --branch main \
+            --workflow "Build Brussels (Multi-Runner)" --branch main \
             --status success --limit 1 --json updatedAt --jq '.[0].updatedAt // empty')
           echo "updated_at=$updated_at" >> "$GITHUB_OUTPUT"
 
@@ -83,7 +83,7 @@ jobs:
           STEPS_STALE_OUTPUTS_AGE_DESC: ${{ steps.stale.outputs.age_desc }}
           STEPS_EXISTING_OUTPUTS_NUMBER: ${{ steps.existing.outputs.number }}
         run: |
-          body="No successful \`Build xfce-linux (Multi-Runner)\` run on \`main\` in over ${STALE_HOURS}h. Last success: ${STEPS_STALE_OUTPUTS_AGE_DESC}.
+          body="No successful \`Build Brussels (Multi-Runner)\` run on \`main\` in over ${STALE_HOURS}h. Last success: ${STEPS_STALE_OUTPUTS_AGE_DESC}.
 
           Automated check (\`.github/workflows/staleness-check.yml\`, #106) — this issue closes itself automatically once a build succeeds again."
 

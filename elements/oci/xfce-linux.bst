@@ -1,6 +1,6 @@
 kind: script
 description: |
-  XFCE Linux OCI image — Wayland desktop with xfwl4 compositor.
+  Brussels OCI image — Wayland desktop with xfwl4 compositor.
 
 build-depends:
   - gnome-build-meta.bst:freedesktop-sdk.bst:components/fakecap.bst
@@ -85,17 +85,17 @@ config:
         parent:
           image: /parent
         layer: /layer
-        comment: "Import XFCE Linux layer"
+        comment: "Import Brussels layer"
         config:
           Labels:
             'com.github.containers.toolbox': 'true'
-            'org.opencontainers.image.title': 'XFCE Linux'
-            'org.opencontainers.image.description': 'A Wayland-native XFCE desktop image with xfwl4 compositor'
-            'org.opencontainers.image.vendor': 'XFCE Linux Project'
+            'org.opencontainers.image.title': 'Brussels'
+            'org.opencontainers.image.description': 'Brussels by TunaOS: experimental Xfce Wayland desktop with xfwl4'
+            'org.opencontainers.image.vendor': 'TunaOS'
             'org.opencontainers.image.licenses': 'GPL-3.0'
-            'org.opencontainers.image.url': 'https://github.com/tuna-os/xfce-linux'
-            'org.opencontainers.image.source': 'https://github.com/tuna-os/xfce-linux'
+            'org.opencontainers.image.url': 'https://github.com/tuna-os/brussels'
+            'org.opencontainers.image.source': 'https://github.com/tuna-os/brussels'
             'containers.bootc': '1'
         index-annotations:
-          'org.opencontainers.image.ref.name': 'ghcr.io/tuna-os/xfce-linux:latest'
+          'org.opencontainers.image.ref.name': 'ghcr.io/tuna-os/brussels:latest'
       EOF

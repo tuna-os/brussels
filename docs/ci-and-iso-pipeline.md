@@ -1,16 +1,16 @@
 # CI & ISO pipeline
 
-How xfce-linux gets from `.bst` elements to a bootable, installable live ISO —
-and how to debug it when it breaks. (Same architecture as tuna-os/xfce-linux;
+How Brussels gets from `.bst` elements to a bootable, installable live ISO —
+and how to debug it when it breaks. (Same architecture as tuna-os/tromso;
 patterns originate in projectbluefin/dakota and dakota-iso.)
 
 ## Build chain
 
 ```
-elements/**  ──►  Build xfce-linux (Multi-Runner)  ──►  ghcr.io/tuna-os/xfce-linux:latest
+elements/**  ──►  Build Brussels (Multi-Runner)  ──►  ghcr.io/tuna-os/brussels:latest
                         │ (workflow_run)
                         ▼
-              Build and Publish xfce-linux Live ISO  ──►  R2: xfce-linux/xfce-linux-live-*.iso
+              Build and Publish Brussels Live ISO  ──►  R2: xfce-linux/xfce-linux-live-*.iso
                         │
                         ▼ (boot gate: XFCE_LINUX_LIVE_READY on serial + screenshot)
               LUKS Install End-to-End Test (PR round-robin / weekly / dispatch)
@@ -27,6 +27,15 @@ secret. If that secret has no value, the job skips the sign step and logs a
 warning. For the key setup and the current state, see [`signing.md`](signing.md).
 The keyless instructions in README.md apply only to the live ISOs that
 `build-iso.yml` signs.
+
+`build_final` pushes the image as `ghcr.io/tuna-os/brussels` (`PUBLISH_NAME`).
+It then runs `scripts/publish-alias.sh`, which copies each tag to
+`ghcr.io/tuna-os/xfce-linux` (`ALIAS_NAMES`) with
+`skopeo copy --preserve-digests` and compares the two digests on the
+registry. Installed systems that track the earlier name thus get the same
+image. `IMAGE_NAME` stays `xfce-linux`: it names the BuildStream target and
+the CAS cache artifacts, not the published image. See
+[`migration-brussels.md`](migration-brussels.md).
 
 Free GitHub runners can't hold the whole GNOME+XFCE build, so the workflow
 splits it:
@@ -159,7 +168,7 @@ not a required check, and it runs only when a PR changes a `.bst` element.
 Post-merge: salvage-enabled nightly world build → ISO boot gate
 (ready-marker + screenshot artifact) → weekly LUKS install e2e
 (screenshots on the `ci-screenshots` branch + PR comments). A cloud
-routine ("tromso + xfce-linux CI babysitter", every 3 h) diagnoses
+routine ("tromso + brussels CI babysitter", every 3 h) diagnoses
 completed failures from logs and pushes fixes.
 
 **Rules that keep this healthy:** do not add `paths:` filters to workflows with

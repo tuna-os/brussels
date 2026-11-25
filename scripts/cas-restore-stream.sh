@@ -2,7 +2,7 @@
 # Stream a BuildStream CAS tarball from GHCR straight into the local cache.
 #
 # Usage: scripts/cas-restore-stream.sh <oras-ref> [<cache-dir>]
-#   <oras-ref>   e.g. ghcr.io/tuna-os/xfce-linux/cache-xfce-linux-core:latest
+#   <oras-ref>   e.g. ghcr.io/tuna-os/brussels/cache-xfce-linux-core:latest
 #   <cache-dir>  defaults to ~/.cache/buildstream
 #
 # Why streaming: `oras pull ... -o .` first writes the whole tarball (up to

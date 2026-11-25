@@ -1,6 +1,6 @@
-# XFCE Linux — Agent Context
+# Brussels — Agent Context
 
-XFCE Linux is a BuildStream-based, vanilla-from-source XFCE (Wayland, xfwl4)
+Brussels is a BuildStream-based, vanilla-from-source XFCE (Wayland, xfwl4)
 OCI/bootc image. Sister project of `tuna-os/tromso` (KDE + Aurora layer);
 both are modeled on projectbluefin/dakota + dakota-iso. An opinionated
 experience layer on top (like tromso's Aurora layer) is planned but not yet
@@ -13,7 +13,13 @@ started.
   plymouth, GDM.
 - **XFCE layer**: `elements/xfce-linux/` (xfconf, libxfce4*, xfwl4 compositor,
   session config) composed in `elements/oci/layers/`, final target
-  `oci/xfce-linux.bst` → `ghcr.io/tuna-os/xfce-linux`.
+  `oci/xfce-linux.bst` → `ghcr.io/tuna-os/brussels`.
+- **Names**: the product, repository and image are `brussels`. The
+  BuildStream names stay `xfce-linux` (`project.conf` `name:`, element
+  paths, `cache-xfce-linux-*`, the `xfce-linux/` ISO directory): a rename
+  there costs a full cold rebuild. `ghcr.io/tuna-os/xfce-linux` is a
+  same-digest alias for installed systems; do not remove `ALIAS_NAMES`
+  without the notice in `docs/migration-brussels.md`.
 - **Live ISO**: `xfce-linux/` directory (Containerfile + src/) + `iso.justfile`
   recipes. See `docs/ci-and-iso-pipeline.md` for the full chain and the
   CI troubleshooting log.
@@ -70,6 +76,10 @@ Heavy builds should run in CI, not on a laptop.
   removed for exactly this).
 - Renaming a required job means updating the branch-protection contexts in
   the same PR.
+- `PUBLISH_NAME` and `ALIAS_NAMES` in `build-multirunner.yml` are the GHCR
+  names; `IMAGE_NAME` is the BuildStream target and cache name. Do not
+  merge them. The alias is a `skopeo copy --preserve-digests`, never a
+  second `podman push`.
 - Never wrap a gate in `|| echo` — that's how checks go silently dead.
 - `tests/pytest/test_iso_invariants.py` encodes shipped bug classes; when
   you fix a CI/ISO bug, add an invariant there and a row to

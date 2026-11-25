@@ -1,4 +1,4 @@
-name: Build xfce-linux (Multi-Runner)
+name: Build Brussels (Multi-Runner)
 
 # Planning + core + parallel dependency chunks are a shared reusable
 # workflow (tuna-os/bst-ci) — identical across every BuildStream desktop
@@ -26,7 +26,19 @@ on:
         default: '10'
 
 env:
+  # IMAGE_NAME is the BuildStream side of the name: the oci/<name>.bst
+  # target, the local export tag and the cache-<name>-* CAS artifacts. It
+  # stays `xfce-linux` on purpose. A change there, or to `name:` in
+  # project.conf, gives every element a new cache key and costs one full
+  # cold rebuild (docs/migration-brussels.md).
   IMAGE_NAME: xfce-linux
+  # PUBLISH_NAME is the product name on GHCR and the primary reference.
+  PUBLISH_NAME: brussels
+  # ALIAS_NAMES are earlier GHCR names. Each one receives the same digest
+  # as PUBLISH_NAME on every publish, so a system that tracks
+  # ghcr.io/tuna-os/xfce-linux continues to update. Space-separated. Remove
+  # a name only after the transition in docs/migration-brussels.md ends.
+  ALIAS_NAMES: xfce-linux
   IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
   BST_TARGET: oci/xfce-linux.bst
   # Variant images laid over the base image in build_final, each from
@@ -375,17 +387,39 @@ jobs:
           fi
           for tag in $TAGS; do
             sudo podman tag "localhost/${STEPS_EXPORT_OUTPUTS_IMAGE_REF}" \
-              "${IMAGE_REGISTRY}/${{ env.IMAGE_NAME }}:${tag}"
+              "${IMAGE_REGISTRY}/${PUBLISH_NAME}:${tag}"
             for i in 1 2 3; do
-              sudo podman push "${IMAGE_REGISTRY}/${{ env.IMAGE_NAME }}:${tag}" && break
+              sudo podman push "${IMAGE_REGISTRY}/${PUBLISH_NAME}:${tag}" && break
               echo "Retry $i..."; sleep 5
             done
           done
-          digest=$(sudo podman inspect "${IMAGE_REGISTRY}/${{ env.IMAGE_NAME }}:${{ github.sha }}" \
+          digest=$(sudo podman inspect "${IMAGE_REGISTRY}/${PUBLISH_NAME}:${{ github.sha }}" \
             --format '{{.Digest}}')
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
         env:
           STEPS_EXPORT_OUTPUTS_IMAGE_REF: ${{ steps.export.outputs.image_ref }}
+
+      # The alias is a registry-side copy, not a second `podman push`: a new
+      # push can compress the layers again and give a different digest.
+      # `skopeo copy --preserve-digests` fails if it cannot keep the
+      # manifest bytes, and the comparison below checks the result on the
+      # registry. A tag that fails here fails the job: an alias that goes
+      # stale strands the systems that track it.
+      - name: Publish alias names at the same digest
+        id: alias
+        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+        env:
+          STEPS_PUSH_OUTPUTS_TAGS: ${{ steps.push.outputs.tags }}
+          SKOPEO: sudo skopeo
+        run: |
+          set -euo pipefail
+          command -v skopeo >/dev/null || {
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends skopeo
+          }
+          scripts/publish-alias.sh "${IMAGE_REGISTRY}" "${PUBLISH_NAME}" \
+            "${ALIAS_NAMES}" "${STEPS_PUSH_OUTPUTS_TAGS}"
 
       - name: Push variant images to GHCR
         id: push_variants
@@ -437,8 +471,14 @@ jobs:
           COSIGN_PASSWORD: ${{ secrets.SIGNING_SECRET_PASSWORD }}
           STEPS_PUSH_OUTPUTS_DIGEST: ${{ steps.push.outputs.digest }}
         run: |
-          cosign sign -y --key env://COSIGN_PRIVATE_KEY \
-            "${IMAGE_REGISTRY}/${{ env.IMAGE_NAME }}@${STEPS_PUSH_OUTPUTS_DIGEST}"
+          # cosign stores a signature in the repository it signs, and
+          # containers-policy(5) checks the signed identity against the
+          # name the client pulls. So each name gets its own signature
+          # over the same digest; one signature does not cover an alias.
+          for name in ${PUBLISH_NAME} ${ALIAS_NAMES}; do
+            cosign sign -y --key env://COSIGN_PRIVATE_KEY \
+              "${IMAGE_REGISTRY}/${name}@${STEPS_PUSH_OUTPUTS_DIGEST}"
+          done
 
       - name: Sign variant images (cosign, key)
         if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) && env.COSIGN_PRIVATE_KEY != '' }}
@@ -466,7 +506,7 @@ jobs:
         if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
         continue-on-error: true
         env:
-          SCAN_IMAGE_REF: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+          SCAN_IMAGE_REF: ${{ env.IMAGE_REGISTRY }}/${{ env.PUBLISH_NAME }}@${{ steps.push.outputs.digest }}
           TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
         run: |
           docker run --rm \
@@ -487,7 +527,10 @@ jobs:
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Target**: \`${BST_TARGET}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image**: \`${IMAGE_REGISTRY}/${IMAGE_NAME}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: \`${IMAGE_REGISTRY}/${PUBLISH_NAME}:latest\`" >> $GITHUB_STEP_SUMMARY
+          for a in ${ALIAS_NAMES}; do
+            echo "- **Alias (same digest)**: \`${IMAGE_REGISTRY}/${a}:latest\`" >> $GITHUB_STEP_SUMMARY
+          done
           for v in ${VARIANTS}; do
             echo "- **Variant**: \`${IMAGE_REGISTRY}/brussels-${v}:latest\`" >> $GITHUB_STEP_SUMMARY
           done

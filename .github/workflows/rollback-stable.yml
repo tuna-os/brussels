@@ -4,7 +4,7 @@ name: Rollback :stable
 # simplified — no cosign yet, see the signing issue). Dispatch-only and
 # dry_run by default: humans opt in to moving tags.
 #
-#   1. Verify ghcr.io/tuna-os/xfce-linux:<target_sha> exists.
+#   1. Verify ghcr.io/tuna-os/brussels:<target_sha> exists.
 #   2. skopeo copy --preserve-digests it onto :stable (+ dated rollback tag).
 #   3. Force-push the stable branch to the target commit so the branch and
 #      the tag never diverge.
@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       target_sha:
-        description: 'Full commit SHA to roll back to (must have a ghcr :<sha> image tag — find candidates via: gh run list --workflow "Build xfce-linux (Multi-Runner)" --branch stable --status success)'
+        description: 'Full commit SHA to roll back to (must have a ghcr :<sha> image tag — find candidates via: gh run list --workflow "Build Brussels (Multi-Runner)" --branch stable --status success)'
         required: true
         type: string
       reason:
@@ -46,8 +46,17 @@ jobs:
       - name: Verify target image exists
         run: |
           echo "$GITHUB_TOKEN" | sudo podman login ghcr.io -u ${GITHUB_ACTOR} --password-stdin
-          sudo skopeo inspect "docker://ghcr.io/tuna-os/xfce-linux:${INPUTS_TARGET_SHA}" --format 'target digest: {{.Digest}}'
-          sudo skopeo inspect "docker://ghcr.io/tuna-os/xfce-linux:stable" --format 'current stable digest: {{.Digest}}' || echo "no :stable yet"
+          # A commit published before the Brussels rename exists only under
+          # the earlier name, so read the target from whichever name has it.
+          src=""
+          for name in brussels xfce-linux; do
+            if sudo skopeo inspect --no-tags "docker://ghcr.io/tuna-os/${name}:${INPUTS_TARGET_SHA}" --format "target digest (${name}): {{.Digest}}"; then
+              src="$name"; break
+            fi
+          done
+          [ -n "$src" ] || { echo "::error::no image tagged ${INPUTS_TARGET_SHA} under brussels or xfce-linux"; exit 1; }
+          echo "ROLLBACK_SOURCE=${src}" >> "$GITHUB_ENV"
+          sudo skopeo inspect --no-tags "docker://ghcr.io/tuna-os/brussels:stable" --format 'current stable digest: {{.Digest}}' || echo "no :stable yet"
           git cat-file -e "${INPUTS_TARGET_SHA}^{commit}" || { echo "::error::SHA not a commit in this repo"; exit 1; }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -57,12 +66,15 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: |
           DATE_TAG=$(date -u +%Y%m%d-%H%M)
-          sudo skopeo copy --preserve-digests \
-            "docker://ghcr.io/tuna-os/xfce-linux:${INPUTS_TARGET_SHA}" \
-            "docker://ghcr.io/tuna-os/xfce-linux:stable"
-          sudo skopeo copy --preserve-digests \
-            "docker://ghcr.io/tuna-os/xfce-linux:${INPUTS_TARGET_SHA}" \
-            "docker://ghcr.io/tuna-os/xfce-linux:stable-rollback-${DATE_TAG}"
+          # Retag the primary name and the transition alias together, so a
+          # system on either name gets the rollback (docs/migration-brussels.md).
+          for name in brussels xfce-linux; do
+            for tag in stable "stable-rollback-${DATE_TAG}"; do
+              sudo skopeo copy --all --preserve-digests \
+                "docker://ghcr.io/tuna-os/${ROLLBACK_SOURCE}:${INPUTS_TARGET_SHA}" \
+                "docker://ghcr.io/tuna-os/${name}:${tag}"
+            done
+          done
         env:
           INPUTS_TARGET_SHA: ${{ inputs.target_sha }}
 

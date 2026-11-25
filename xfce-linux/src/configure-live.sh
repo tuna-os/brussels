@@ -217,7 +217,7 @@ INSTALLER_APP_ID="org.tunaos.InstallerXfce"
 mkdir -p /etc/xdg/autostart
 cat > /etc/xdg/autostart/tuna-installer.desktop << DTEOF
 [Desktop Entry]
-Name=XFCE Linux Installer
+Name=Brussels Installer
 Exec=flatpak run ${INSTALLER_APP_ID}
 Icon=system-software-install
 Terminal=false
@@ -228,8 +228,8 @@ DTEOF
 mkdir -p /usr/share/applications
 cat > /usr/share/applications/xfce-linux-installer.desktop << DTEOF
 [Desktop Entry]
-Name=XFCE Linux Installer
-Comment=Install XFCE Linux to your computer
+Name=Brussels Installer
+Comment=Install Brussels to your computer
 Exec=flatpak run ${INSTALLER_APP_ID}
 Icon=system-software-install
 Type=Application
