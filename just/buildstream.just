@@ -8,7 +8,10 @@
 bst *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
-    mkdir -p "${HOME}/.cache/buildstream"
+    # BST_CACHE_DIR selects a different cache directory, for example a
+    # throwaway one for `just bootstrap-cache` experiments.
+    CACHE_DIR="${BST_CACHE_DIR:-${HOME}/.cache/buildstream}"
+    mkdir -p "$CACHE_DIR"
     # BST_FLAGS env var allows CI to inject --no-interactive, etc.
     # Word-splitting is intentional here (flags are space-separated).
     # shellcheck disable=SC2086
@@ -17,7 +20,7 @@ bst *ARGS:
         --device /dev/fuse \
         --network=host \
         -v "{{justfile_directory()}}:/src:rw" \
-        -v "${HOME}/.cache/buildstream:/root/.cache/buildstream:rw" \
+        -v "${CACHE_DIR}:/root/.cache/buildstream:rw" \
         -w /src \
         "{{bst2_image}}" \
         bash -c 'bst --colors "$@"' -- ${BST_FLAGS:-} {{ARGS}}

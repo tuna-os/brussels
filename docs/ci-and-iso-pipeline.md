@@ -97,6 +97,36 @@ installed system boot. The workflow publishes screenshots to the
 `ci-screenshots` branch and PR comments. They show the live desktop, Plymouth
 prompt, and installed desktop.
 
+## Local builds from the CI cache
+
+CI publishes the BuildStream cache of each build stage on GHCR as a public
+package: `ghcr.io/tuna-os/brussels/cache-xfce-linux-<stage>:latest`. The
+recipes in `just/local-cache.just` copy that cache to your machine. A local
+build then compiles only the elements that differ from `main`.
+
+```bash
+just cache-list                    # size, date and digest of the core archive
+just bootstrap-cache               # download the core stage (about 13 GiB)
+just bootstrap-cache core chunk0-json-c   # add a chunk stage by name
+just cache-status                  # count the cached elements of the image
+just build-local                   # build oci/xfce-linux.bst from the cache
+```
+
+The recipes only read the registry, and they need no login. The download
+continues after a cut connection and checks the SHA-256 of the archive.
+Set `BST_CACHE_DIR` to use a cache directory other than
+`~/.cache/buildstream`.
+
+The script is `scripts/cas_bootstrap.py` from
+[tuna-os/bst-ci](https://github.com/tuna-os/bst-ci), shared with tromso.
+The recipe downloads it at a pinned commit and checks its SHA-256 before it
+runs. `tests/pytest/test_local_cache_pinned.py` guards the pin.
+
+`cache-status` and `build-local` stop if `files/`, `patches/`, `include/` or
+`elements/` contain untracked or ignored files. BuildStream puts each file
+of a local source directory into the cache key, so one stray file makes the
+build miss the cache.
+
 ## Source updates
 
 - **Renovate** (`renovate.json`) — GitHub Actions, container tags. Automerge
