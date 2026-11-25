@@ -73,13 +73,15 @@ config:
               -o -name 'xfce4-whiskermenu*' -o -name 'xfce4-logo*' -o -name 'wine.*' \
               -o -name 'software-update-available*' -o -name 'software-update-urgent*' \
               -o -name 'application-x-ms-dos-executable*' -o -name 'application-x-ms-shortcut*' \
-              -o -name 'application-x-sln*' -o -name 'com.visualstudio*' -o -name 'im-msn*' \
+              -o -name 'com.visualstudio*' -o -name 'im-msn*' \
               -o -name 'folder-download*' -o -name 'folder_download*' -o -name 'msaccess*' \
               -o -name 'libreoffice-base*' -o -name 'libreoffice-calc*' -o -name 'libreoffice-draw.*' \
               -o -name 'libreoffice-impress*' -o -name 'libreoffice-main*' -o -name 'libreoffice-math*' \
               -o -name 'libreoffice-writer*' -o -name 'libreoffice-text*' \
               -o -name 'libreoffice-presentation*' -o -name 'libreoffice-spreadsheet*' \
-              -o -name 'ooo-*' -o -name 'x-office-presentation*' -o -name 'x-office-spreadsheet*' \
+              -o -name 'ooo-base*' -o -name 'ooo-calc*' -o -name 'ooo-writer*' -o -name 'ooo-impress*' \
+              -o -name 'x-office-presentation*' -o -name 'x-office-spreadsheet*' \
+              -o -name 'x-office-document*' -o -name 'extension.*' \
               -o -name 'application-vnd.oasis.opendocument.chart*' \)
     find . "$@" -type f -exec md5sum {} + | cut -d' ' -f1 | sort -u > "$blocked"
     find . -type f -exec md5sum {} + | grep -F -f "$blocked" | cut -d' ' -f3- \
@@ -92,7 +94,7 @@ config:
       for ext in png svg; do
         [ -e "$dir/folder.$ext" ] || continue
         for name in folder-download folder-downloads; do
-          ln -s "folder.$ext" "$dir/$name.$ext"
+          ln -sf "folder.$ext" "$dir/$name.$ext"
         done
       done
     done

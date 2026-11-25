@@ -21,7 +21,7 @@ def test_chicago95_skips_microsoft_derived_assets():
     script = yaml.safe_load(CHICAGO95.read_text())["config"]["install-commands"][0]
     for unwanted in ("sounds/", "Plymouth", "Extras/Backgrounds", "Fonts/", "Microsoft Windows 95 Startup Sound"):
         assert unwanted not in script, unwanted
-    for removed in ("misc", "branding_W95.png", "start-here*", "chromium-browser*", "application-msword*"):
+    for removed in ("misc", "branding_W95", "throbber", "xfce4-logo*", "start-here*", "chromium-browser*", "application-msword*"):
         assert removed in script, removed
     # The audit that fails the build when a removed image survives.
     assert "trademarked artwork still installed" in script
