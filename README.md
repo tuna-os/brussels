@@ -65,7 +65,17 @@ ready. Thus, downstream download pages can safely use those stable names.
 
 ## Verifying Signatures
 
-**OCI images:** Image signature verification is not yet in effect. See [`docs/signing.md`](docs/signing.md) for the implementation plan.
+**OCI images:** CI signs each image digest with cosign and no key.
+
+```bash
+cosign verify ghcr.io/tuna-os/brussels:latest \
+  --certificate-identity https://github.com/tuna-os/brussels/.github/workflows/build-multirunner.yml@refs/heads/main \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Images from before this change have no signature, and the command fails for
+them. See [`docs/signing.md`](docs/signing.md) for `:stable`, the variants,
+and the limits. `bootc` does not enforce this signature.
 
 **Live ISO signatures** (`.sig` and `.cert` files accompany each dated ISO,
 such as `xfce-linux-live-<date>-<sha>.iso.sig`):

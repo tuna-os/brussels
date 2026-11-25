@@ -101,7 +101,7 @@ def test_the_tooling_checkout_is_pinned_and_keeps_no_credentials():
 
 
 def test_the_build_job_has_no_token_that_can_sign_a_release():
-    # The key-based cosign step needs no OIDC token; this job must not gain one.
+    # sign_final holds the OIDC grant of cosign; this job must not gain one.
     job = yaml.safe_load(CALLEE.read_text())["jobs"]["build_final"]
     assert "id-token" not in job["permissions"]
 
