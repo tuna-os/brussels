@@ -233,7 +233,7 @@ jobs:
         uses: extractions/setup-just@v4.0.0  # zizmor: ignore[unpinned-tools] pinning just-version would change the just release used
 
       - name: Setup ORAS
-        uses: oras-project/setup-oras@v2.0.3
+        uses: oras-project/setup-oras@v2.0.4
 
       - name: Login to GHCR
         run: echo "$GITHUB_TOKEN" | oras login ghcr.io -u ${GITHUB_ACTOR} --password-stdin
@@ -604,7 +604,7 @@ jobs:
       id-token: write # cosign keyless signing (Sigstore/Fulcio OIDC)
     steps:
       - name: Setup ORAS
-        uses: oras-project/setup-oras@v2.0.3
+        uses: oras-project/setup-oras@v2.0.4
 
       - name: Login to GHCR
         run: echo "$GITHUB_TOKEN" | oras login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
