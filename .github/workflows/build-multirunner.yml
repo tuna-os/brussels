@@ -597,7 +597,7 @@ jobs:
   sign_final:
     needs: build_final
     if: ${{ !cancelled() && needs.build_final.result == 'success' && needs.build_final.outputs.digest != '' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       packages: write # cosign pushes the signature to GHCR
