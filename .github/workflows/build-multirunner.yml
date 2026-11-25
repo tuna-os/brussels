@@ -115,7 +115,7 @@ jobs:
   multirunner:
     needs: gate
     if: needs.gate.outputs.skip != 'true'
-    uses: tuna-os/bst-ci/.github/workflows/multirunner-build.yml@3c1dc3140c415174b40509bc1edd96dd14851926  # main  # zizmor: ignore[ref-version-mismatch] pinned to a reviewed main commit; Renovate bumps the digest, so main may be ahead
+    uses: tuna-os/bst-ci/.github/workflows/multirunner-build.yml@a3face86dff4d4c82260b5bc59b4fa8fb8cfdd1d  # main  # zizmor: ignore[ref-version-mismatch] pinned to a reviewed main commit; Renovate bumps the digest, so main may be ahead
     permissions:
       contents: read
       packages: write
@@ -254,7 +254,7 @@ jobs:
           # the runner disk before extracting it, right next to the cache it was
           # unpacking into. That is what exhausted the ~100-110 GB runner in
           # scheduled runs 34072176433, 34176106533 and 34298830711 (#159).
-          # scripts/cas-restore-stream.sh pipes the blob through zstd and tar
+          # scripts/cas-restore-stream.sh pipes the blob through zstd and the bst-ci untar
           # so the compressed bytes never land.
           scripts/cas-restore-stream.sh "${BASE}-core:latest" \
             || echo "::warning::core CAS unavailable — build_final rebuilds it"
