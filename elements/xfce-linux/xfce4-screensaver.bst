@@ -22,6 +22,8 @@ depends:
 - freedesktop-sdk.bst:components/wayland.bst
 - freedesktop-sdk.bst:components/linux-pam.bst
 - freedesktop-sdk.bst:components/systemd.bst
+# dbus-glib must install its .pc file in %{libdir}; meson stops with
+# `Dependency "dbus-glib-1" not found` if it does not.
 - xfce-linux/dbus-glib.bst
 - xfce-linux/libxfce4util.bst
 - xfce-linux/libxfce4ui.bst

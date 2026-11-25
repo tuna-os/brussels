@@ -16,6 +16,12 @@ sources:
   url: dbus_releases:dbus-glib/dbus-glib-0.114.tar.gz
   ref: c09c5c085b2a0e391b8ee7d783a1d63fe444e96717cc1814d61b5e8fc2827a7c
 
-config:
-  configure-commands:
-    - ./configure --prefix=/usr --disable-gtk-doc --disable-static --enable-shared
+# Use the project's configure arguments, not a bare `./configure --prefix=/usr`.
+# A bare configure installs to /usr/lib, and pkg-config in this SDK reads
+# %{libdir} (/usr/lib/<multiarch>), so xfce4-screensaver could not find
+# dbus-glib-1.pc. The dynamic loader does not read /usr/lib for it either.
+variables:
+  conf-local: >-
+    --disable-gtk-doc
+    --disable-static
+    --enable-shared

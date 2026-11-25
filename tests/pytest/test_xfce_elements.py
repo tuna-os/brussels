@@ -198,3 +198,15 @@ def test_screen_locker_is_wayland_xfce4_screensaver():
     assert "xfce-linux/libwlembed.bst" in data["depends"]
     cluster = (ELEMENTS_DIR / "xfce-linux-cluster.bst").read_text()
     assert "xfce-linux/xfce4-screensaver.bst" in cluster
+
+
+def test_dbus_glib_installs_into_the_project_libdir():
+    """A bare `./configure --prefix=/usr` puts dbus-glib-1.pc in /usr/lib/pkgconfig.
+
+    pkg-config in the SDK reads %{libdir}, so xfce4-screensaver stopped with
+    `Dependency "dbus-glib-1" not found` in every chunk that built it (run
+    45344668715). The element must keep the project's configure arguments.
+    """
+    element = yaml.safe_load((ELEMENTS_DIR / "dbus-glib.bst").read_text())
+    assert "configure-commands" not in element.get("config", {})
+    assert "--disable-static" in element["variables"]["conf-local"]
