@@ -198,3 +198,25 @@ def test_session_smoke_marker_and_gate():
         assert proc in CONFIGURE_LIVE
     workflow = (REPO / ".github" / "workflows" / "build-iso.yml").read_text()
     assert 'grep -q "XFCE_LINUX_SESSION_READY" /tmp/serial.log ||' in workflow
+
+
+def test_live_session_name_comes_from_the_payload_image():
+    """The live ISO must not name a GDM session the payload image lacks.
+
+    The ISO is built from the last published image. That image called the
+    session xfce-wayland before the source build and xfwl4 after it. With a
+    fixed name that the image does not have, GDM logs the live user into the
+    GNOME session with no error (run 45545036042: GNOME Shell on screen, no
+    XFCE_LINUX_SESSION_READY). configure-live.sh must pick the name from the
+    image and stop when the image has no XFCE Wayland session.
+    """
+    text = (REPO / "xfce-linux" / "src" / "configure-live.sh").read_text()
+    assert "for candidate in xfwl4 xfce-wayland; do" in text
+    assert "/usr/share/wayland-sessions/${candidate}.desktop" in text
+    assert "DefaultSession=${LIVE_SESSION}" in text
+    assert "Session=${LIVE_SESSION}" in text and "XSession=${LIVE_SESSION}" in text
+    # No fixed session name is left in the GDM or AccountsService config.
+    assert "DefaultSession=xfwl4" not in text and "\nSession=xfwl4" not in text
+    # A payload with neither session stops the build.
+    block = text[text.index('if [ -z "${LIVE_SESSION}" ]; then') :][:300]
+    assert "exit 1" in block

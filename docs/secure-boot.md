@@ -89,9 +89,9 @@ Be exact about the limits.
 - **Kernel modules.** They still have the snakeoil `MODULES` signature from
   the junction. The kernel does not enforce module signatures. Change this
   before an image turns lockdown on.
-- **The fallback workflow.** `build-and-publish-xfce-linux.yml` can push an
-  image from a manual run. That image has no layer, and it has the snakeoil
-  signature. Do not use it for a release tag.
+- **The fallback workflow.** `build-and-publish-xfce-linux.yml` gets no key,
+  so it cannot add the layer. A step there stops the push while the loader
+  still has the snakeoil signature. Use it to build, not to publish.
 - **The live ISO.** `xfce-linux/src/build-iso.sh` copies the systemd-boot
   with no signature. The ISO boots with Secure Boot off, as before.
 - **The installed ESP.** bootc copies the signed systemd-boot only. A
@@ -116,7 +116,7 @@ bundle, that key is also the platform key. The key has no offline root.
 
 | Claim | State |
 |---|---|
-| `sign-image.sh` and `verify-image.sh` work on a published image | Shown with a throwaway key, on a local machine. See tuna-os/tunaOS#4963. |
+| `sign-image.sh` and `verify-image.sh` work on the published Brussels image | Shown with a throwaway key, on a local machine. See tuna-os/tunaOS#4963. |
 | The publish job signs with the real key | Not shown. The nightly build must pass first. |
 | The image boots with Secure Boot on | Not shown. |
 | MokManager accepts the certificate on a PC | Not shown. |

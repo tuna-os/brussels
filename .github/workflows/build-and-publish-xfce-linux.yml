@@ -124,6 +124,26 @@ jobs:
       - name: Verify image
         run: just lint
 
+      # This fallback has no Secure Boot key (docs/secure-boot.md): only the
+      # publish path of build-multirunner.yml signs. The BuildStream build
+      # signs systemd-boot with the public test key of gnome-build-meta, and
+      # that loader must not go to the registry. So a push from here stops
+      # while the loader still verifies against the test certificate. Build
+      # with push_image off, or publish through build-multirunner.yml.
+      - name: Refuse to publish the test-signed loader
+        if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends sbsigntool
+          mnt="$(sudo podman image mount "localhost/${IMAGE_NAME}:latest")"
+          loader="${mnt}/usr/lib/systemd/boot/efi/systemd-bootx64.efi"
+          sudo test -s "${loader}"
+          if sudo sbverify --cert tests/fixtures/secure-boot/gnome-build-meta-snakeoil-vendor.crt "${loader}" >/dev/null 2>&1; then
+            echo "::error::systemd-boot has the public test signature of gnome-build-meta; this workflow cannot publish it"
+            exit 1
+          fi
+
       - name: Login to GHCR
         if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
         run: |

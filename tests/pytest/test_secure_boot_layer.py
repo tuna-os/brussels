@@ -132,3 +132,15 @@ def test_the_document_states_the_limits():
         "shim-x64-16.1-7",
     ):
         assert needle in text, needle
+
+
+def test_the_fallback_workflow_cannot_publish_the_test_signed_loader():
+    fallback = yaml.safe_load((WORKFLOWS / "build-and-publish-xfce-linux.yml").read_text())
+    steps = next(iter(fallback["jobs"].values()))["steps"]
+    names = [step.get("name") for step in steps]
+    guard = steps[names.index("Refuse to publish the test-signed loader")]
+    push = steps[names.index("Push to GHCR")]
+    assert names.index("Refuse to publish the test-signed loader") < names.index("Push to GHCR")
+    assert guard["if"] == push["if"]
+    assert f"sbverify --cert {SNAKEOIL}" in guard["run"] and "exit 1" in guard["run"]
+    assert "secrets." not in str(guard)

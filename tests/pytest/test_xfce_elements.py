@@ -144,13 +144,17 @@ def test_session_is_upstream_xfwl4_entry():
     assert "xfce-wayland.desktop" not in xfwl4
     session = (ELEMENTS_DIR / "xfce4-session.bst").read_text()
     assert 'rm -f "%{install-root}%{datadir}/wayland-sessions/xfce-wayland.desktop"' in session
-    for path in (
-        REPO / "elements" / "oci" / "layers" / "xfce-linux-stack.bst",
-        REPO / "xfce-linux" / "src" / "configure-live.sh",
-    ):
-        text = path.read_text()
-        assert "DefaultSession=xfwl4" in text, path
-        assert "Session=xfce-wayland" not in text, path
+    stack = REPO / "elements" / "oci" / "layers" / "xfce-linux-stack.bst"
+    text = stack.read_text()
+    assert "DefaultSession=xfwl4" in text, stack
+    assert "Session=xfce-wayland" not in text, stack
+    # The live ISO is built from the last published image, which can still
+    # carry the old name. configure-live.sh prefers xfwl4 and takes
+    # xfce-wayland only when the image has no xfwl4 session
+    # (test_live_session_name_comes_from_the_payload_image).
+    live = (REPO / "xfce-linux" / "src" / "configure-live.sh").read_text()
+    assert "for candidate in xfwl4 xfce-wayland; do" in live
+    assert "Session=xfce-wayland" not in live
 
 
 def test_no_forced_software_rendering():
