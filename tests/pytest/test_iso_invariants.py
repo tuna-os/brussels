@@ -42,7 +42,7 @@ def test_live_ready_marker_present():
 
 def test_payload_ref_points_at_our_image():
     ref = (REPO / TARGET / "payload_ref").read_text().strip()
-    assert ref.startswith(f"ghcr.io/tuna-os/{TARGET}:"), ref
+    assert ref.startswith("ghcr.io/tuna-os/brussels:"), ref
 
 
 def test_polkit_action_id_is_shared_constant():

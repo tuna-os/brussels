@@ -85,12 +85,9 @@ a system that has no static hostname.
 
 ### Installer media
 
-The live ISO and its installer continue to install from
-`ghcr.io/tuna-os/xfce-linux` until the first image is public at the new
-name. Then one change moves `xfce-linux/payload_ref`, the `BASE_IMAGE`
-default in `xfce-linux/Containerfile`, and the installer `imgref` values to
-`ghcr.io/tuna-os/brussels`. A system that the ISO installs before that
-change tracks the alias and updates in the usual way.
+The live ISO and its installer install from `ghcr.io/tuna-os/brussels`. A
+system that an earlier ISO installed tracks the `xfce-linux` alias and
+updates in the usual way.
 
 ## Signatures
 

@@ -73,7 +73,7 @@ jobs:
           fi
 
       - name: Point ISO payload at channel image
-        run: echo "ghcr.io/tuna-os/xfce-linux:${STEPS_CHANNEL_OUTPUTS_PAYLOAD_TAG}" > xfce-linux/payload_ref
+        run: echo "ghcr.io/tuna-os/brussels:${STEPS_CHANNEL_OUTPUTS_PAYLOAD_TAG}" > xfce-linux/payload_ref
         env:
           STEPS_CHANNEL_OUTPUTS_PAYLOAD_TAG: ${{ steps.channel.outputs.payload_tag }}
 

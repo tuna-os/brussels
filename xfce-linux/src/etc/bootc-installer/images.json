@@ -1,10 +1,10 @@
 {
-  "default_image": "ghcr.io/tuna-os/xfce-linux:latest",
+  "default_image": "ghcr.io/tuna-os/brussels:latest",
   "fallback_flatpaks": [],
   "images": [
     {
       "name": "Brussels",
-      "imgref": "ghcr.io/tuna-os/xfce-linux:latest",
+      "imgref": "ghcr.io/tuna-os/brussels:latest",
       "desc": "Brussels by TunaOS — experimental Xfce Wayland desktop",
       "icon": "resource:///org/bootcinstaller/Installer/images/aurora.png",
       "bootloader": "systemd",
