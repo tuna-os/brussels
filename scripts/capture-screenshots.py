@@ -6,15 +6,18 @@ arguments of `just generate-bootable-image`. Only systemd.debug_shell=ttyS1
 is necessary: it gives the script a root shell on the second serial port.
 QEMU runs with -snapshot, so the disk image does not change.
 
-The script makes a demo user in the running VM, logs in through the greeter
-with QMP key events, starts the applications of the image, and saves the
-framebuffer with the QMP `screendump` command. It does not edit a picture.
+The script uses the session that the image starts. If the image stops at the
+greeter, the script makes a demo user in the running VM and logs in with QMP
+key events. Then it starts the applications of the image, and saves the
+framebuffer with the QMP `screendump` command. The login picture comes last,
+with the automatic login off. The script does not edit a picture.
 docs/winblues.md tells how to use it.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import re
 import shutil
@@ -127,7 +130,7 @@ class RootShell:
         self.count += 1
         marker = f"END{self.count}END"
         # The quotes keep the marker out of the echo of the command line.
-        self.sock.sendall(f"{command}; echo \"END\"\"{self.count}END:$?\"\n".encode())
+        self.sock.sendall(f'{command}; echo "END""{self.count}END:$?"\n'.encode())
         data = b""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -141,7 +144,7 @@ class RootShell:
             self.log.flush()
             data += chunk
             text = re.sub(r"\x1b(\[[0-9;?]*[A-Za-z]|\][^\x07]*\x07|[>=])", "", data.decode(errors="replace"))
-            if match := re.search(rf"{marker}:(\d+)", text):
+            if match := re.search(rf"{marker}:(\d+)\r?\n", text):
                 if match[1] != "0":
                     raise RuntimeError(f"exit {match[1]} from: {command}\n{text}")
                 return text
@@ -160,15 +163,24 @@ class RootShell:
     def wait_for(self, test: str, timeout: float) -> None:
         self.run(f"timeout {int(timeout)} sh -c 'until {test}; do sleep 1; done'", timeout=timeout + 10)
 
-    def in_session(self, command: str) -> None:
-        """Start a program of the image as a client of the demo session."""
-        env = (
-            "XDG_RUNTIME_DIR=/run/user/$(id -u demo) "
-            "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u demo)/bus "
-            "WAYLAND_DISPLAY=$(cd /run/user/$(id -u demo) && ls -d wayland-? | head -n1) "
-            "XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=XFCE GDK_BACKEND=wayland"
+    def session_user(self) -> str:
+        """Return the owner of the running panel, or an empty string."""
+        text = self.run('echo "OW""NER=$(ps -C xfce4-panel -o user:32= | head -n1 | tr -d \' \')"')
+        match = re.search(r"OWNER=([\w-]+)", text)
+        return match[1] if match else ""
+
+    def in_session(self, user: str, command: str) -> None:
+        """Start a program of the image as a client of the XFCE session.
+
+        It gets the environment of the panel, as if the menu started it.
+        """
+        launcher = f"#!/bin/sh\ncd\nexec setsid setpriv --reuid {user} --regid {user} --init-groups {command}\n"
+        encoded = base64.b64encode(launcher.encode()).decode()
+        self.run(f"echo {encoded} | base64 -d > /run/shot.sh")
+        self.run(
+            "xargs -0 -a /proc/$(pgrep -ox xfce4-panel)/environ sh -c "
+            "'env -i \"$@\" sh /run/shot.sh >/dev/null 2>&1 </dev/null &' sh"
         )
-        self.run(f"(cd /home/demo && runuser -u demo -- env {env} setsid {command} >/dev/null 2>&1 </dev/null &)")
 
 
 def qemu_command(args: argparse.Namespace, work: Path) -> list[str]:
@@ -196,61 +208,78 @@ def capture(args: argparse.Namespace, qmp: Qmp, shell: RootShell) -> None:
         qmp.run("screendump", filename=str(png.resolve()), format="png")
         print(f"captured {png}", flush=True)
 
-    def close(program: str) -> None:
-        shell.run(f"pkill -u demo -f '{program}' || true")
-        time.sleep(1)
-
     shell.wait_ready(args.boot_timeout)
-    # Keep the kernel log and the greeter away from a first-boot wizard, and
-    # keep names of the host out of the pictures.
+    # A generic host name, so that a picture shows no personal data.
     shell.run("hostname brussels")
-    shell.run(f"id {USER} >/dev/null 2>&1 || useradd -m -c 'Demo User' -s /bin/bash {USER}")
-    shell.run(f"echo {USER}:{PASSWORD} | chpasswd")
     shell.wait_for("systemctl is-active -q graphical.target", args.boot_timeout)
-    shell.run("systemctl restart display-manager", timeout=120)
-    time.sleep(15)
+    # The clock on the panel must not show a time before the first NTP sync.
+    shell.wait_for("test $(date +%Y) -ge 2026", 60)
+    time.sleep(30)
 
-    versions = shell.run(
-        "cat /usr/lib/os-release; uname -r;"
-        " for p in xfwl4 xfce4-panel xfce4-session thunar xfce4-terminal xfdesktop; do"
-        " echo \"== $p\"; timeout 10 runuser -u demo -- $p --version 2>&1 | head -n1; done"
-    )
-    (args.out / "versions.txt").write_text(versions.replace("\r", ""))
-
-    shot("login")
-    if not args.no_login:
+    user = shell.session_user()
+    if not user:
+        user = USER
+        shell.run(f"id {USER} >/dev/null 2>&1 || useradd -m -c 'Demo User' -s /bin/bash {USER}")
+        shell.run(f"echo {USER}:{PASSWORD} | chpasswd")
+        # The image also carries the GNOME session; select the XFCE one.
+        shell.run(
+            'mkdir -p /var/lib/AccountsService/users && printf "[User]\\nSession=%s\\n"'
+            " $(basename -s .desktop $(ls -d /usr/share/wayland-sessions/xf*.desktop | head -n1))"
+            f" > /var/lib/AccountsService/users/{USER}"
+        )
+        shell.run("systemctl restart display-manager", timeout=120)
+        time.sleep(15)
         qmp.keys("ret")
         time.sleep(3)
         qmp.type(PASSWORD + "\n")
         shell.wait_for(f"pgrep -u {USER} -x xfce4-panel >/dev/null", 120)
         time.sleep(20)
+    print(f"session of {user}", flush=True)
+
+    versions = shell.run(
+        "cat /usr/lib/os-release; uname -r;"
+        " for p in xfwl4 xfce4-panel xfce4-session thunar xfce4-terminal xfdesktop; do"
+        f' echo "== $p"; timeout 10 setpriv --reuid {user} --clear-groups $p --version 2>&1 | head -n1; done'
+    )
+    (args.out / "versions.txt").write_text(versions.replace("\r", ""))
+
+    def close(program: str) -> None:
+        shell.run(f"pkill -u {user} -f '[{program[0]}]{program[1:]}' || true")
+        time.sleep(1)
+
+    def start_menu() -> None:
+        qmp.click(30, HEIGHT - 15)
 
     shot("desktop")
-    qmp.click(30, HEIGHT - 15)
+    start_menu()
     shot("start-menu")
     qmp.keys("esc")
 
+    terminal = "xfce4-terminal -e 'bash -c \"head -n7 /usr/lib/os-release; uname -sr; exec bash\"'"
     for name, program, command in (
         ("file-manager", "thunar", "thunar /usr/share"),
-        ("terminal", "xfce4-terminal", "xfce4-terminal -e 'bash -c \"fastfetch; exec bash\"'"),
+        ("terminal", "xfce4-terminal", terminal),
         ("appearance", "xfce4-appearance-settings", "xfce4-appearance-settings"),
         ("settings", "xfce4-settings-manager", "xfce4-settings-manager"),
         ("about", "xfce4-about", "xfce4-about"),
     ):
-        shell.in_session(command)
+        shell.in_session(user, command)
         time.sleep(4)
         shot(name)
         close(program)
 
-    shell.in_session("thunar /home/demo")
-    time.sleep(3)
-    shell.in_session("xfce4-terminal -e 'bash -c \"fastfetch; exec bash\"'")
-    time.sleep(3)
-    shell.in_session("xfce4-appearance-settings")
-    time.sleep(3)
-    qmp.click(30, HEIGHT - 15)
+    for command in ("thunar /usr/share/icons", terminal, "xfce4-appearance-settings"):
+        shell.in_session(user, command)
+        time.sleep(4)
+    start_menu()
     shot("hero")
     qmp.keys("esc")
+
+    # Last, because it ends the session.
+    shell.run("sed -i 's/^AutomaticLoginEnable=.*/AutomaticLoginEnable=False/' /etc/gdm/custom.conf || true")
+    shell.run("systemctl restart display-manager", timeout=120)
+    time.sleep(20)
+    shot("login")
 
 
 def main() -> int:
@@ -265,7 +294,6 @@ def main() -> int:
     parser.add_argument("--cpus", type=int, default=6)
     parser.add_argument("--boot-timeout", type=float, default=240)
     parser.add_argument("--settle", type=float, default=3, help="seconds to wait before each picture")
-    parser.add_argument("--no-login", action="store_true", help="the image logs in without a greeter")
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
