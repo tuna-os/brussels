@@ -4,7 +4,7 @@ Status: proposed · 2026-07-19
 
 ## Context
 
-XFCE Linux runs XFCE on Wayland through the xfwl4 compositor. The traditional
+Brussels runs XFCE on Wayland through the xfwl4 compositor. The traditional
 stack for XFCE login uses LightDM and lightdm-gtk-greeter, which support only
 X11. LightDM can *start* Wayland sessions, but the GTK greeter renders through
 X. This adds Xorg to an image that otherwise uses only Wayland.
@@ -37,7 +37,7 @@ greeter.
 Short term: keep GDM (option 1) — it works and the live ISO depends on its
 autologin today.
 Target: **option 2 (greetd + regreet)** as the shipped greeter for the
-opinionated XFCE layer, branded with XFCE Linux assets.
+opinionated XFCE layer, branded with Brussels assets.
 Long term / upstream track: prototype option 3 with the XFCE project if it has
 interest. This could become the official greeter for XFCE on Wayland.
 

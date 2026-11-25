@@ -3,9 +3,9 @@
   "fallback_flatpaks": [],
   "images": [
     {
-      "name": "XFCE Linux",
+      "name": "Brussels",
       "imgref": "ghcr.io/tuna-os/xfce-linux:latest",
-      "desc": "XFCE Linux — immutable XFCE Wayland desktop",
+      "desc": "Brussels by TunaOS — experimental Xfce Wayland desktop",
       "icon": "resource:///org/bootcinstaller/Installer/images/aurora.png",
       "bootloader": "systemd",
       "filesystem": "ext4",

@@ -63,9 +63,9 @@ jobs:
             echo "$sha"
           }
           set +e
-          BUILD_SHA=$(check "Build xfce-linux (Multi-Runner)")
+          BUILD_SHA=$(check "Build Brussels (Multi-Runner)")
           BUILD_OK=$?
-          ISO_SHA=$(check "Build and Publish xfce-linux Live ISO")
+          ISO_SHA=$(check "Build and Publish Brussels Live ISO")
           ISO_OK=$?
           # The install E2E workflows only have to be green; their SHA is not
           # part of the promotion identity, so discard it.
@@ -106,7 +106,7 @@ jobs:
         id: dispatch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run "Build xfce-linux (Multi-Runner)" --ref stable
+        run: gh workflow run "Build Brussels (Multi-Runner)" --ref stable
 
       - name: Wait for stable build and ISO publication
         timeout-minutes: 720
@@ -149,21 +149,32 @@ jobs:
             exit 1
           }
 
-          wait_for_run "Build xfce-linux (Multi-Runner)"
-          wait_for_run "Build and Publish xfce-linux Live ISO"
+          wait_for_run "Build Brussels (Multi-Runner)"
+          wait_for_run "Build and Publish Brussels Live ISO"
 
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends rclone skopeo
 
           echo "$GH_TOKEN" | sudo skopeo login ghcr.io --username "github-actions[bot]" --password-stdin
-          sudo skopeo inspect "docker://ghcr.io/tuna-os/xfce-linux:stable" >/dev/null
+          # brussels is the primary name; xfce-linux is the transition alias
+          # (docs/migration-brussels.md). Both must carry the stable tags,
+          # and both must resolve to one digest.
+          stable_digest=""
+          for name in brussels xfce-linux; do
+            digest=$(sudo skopeo inspect --no-tags --format '{{.Digest}}' "docker://ghcr.io/tuna-os/${name}:stable")
+            [ -n "$digest" ] || { echo "::error::no stable digest for ${name}"; exit 1; }
+            if [ -n "$stable_digest" ] && [ "$digest" != "$stable_digest" ]; then
+              echo "::error::${name}:stable is ${digest}, brussels:stable is ${stable_digest}"; exit 1
+            fi
+            stable_digest="$digest"
 
-          tags=$(gh api --paginate \
-            "/orgs/tuna-os/packages/container/xfce-linux/versions?per_page=100" \
-            --jq '.[].metadata.container.tags[]?' | sort -u)
-          grep -qx stable <<<"$tags" || { echo "::error::GHCR stable tag missing"; exit 1; }
-          grep -qx "$SHA" <<<"$tags" || { echo "::error::GHCR commit tag missing: $SHA"; exit 1; }
-          grep -Eq '^stable-[0-9]{8}$' <<<"$tags" || { echo "::error::GHCR dated stable tag missing"; exit 1; }
+            tags=$(gh api --paginate \
+              "/orgs/tuna-os/packages/container/${name}/versions?per_page=100" \
+              --jq '.[].metadata.container.tags[]?' | sort -u)
+            grep -qx stable <<<"$tags" || { echo "::error::GHCR stable tag missing on ${name}"; exit 1; }
+            grep -qx "$SHA" <<<"$tags" || { echo "::error::GHCR commit tag missing on ${name}: $SHA"; exit 1; }
+            grep -Eq '^stable-[0-9]{8}$' <<<"$tags" || { echo "::error::GHCR dated stable tag missing on ${name}"; exit 1; }
+          done
 
           prefix="R:${R2_BUCKET}/xfce-linux/stable"
           tmp=$(mktemp -d)

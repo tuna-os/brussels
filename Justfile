@@ -114,11 +114,11 @@ show-me-the-future:
             --margin "1 2" \
             --padding "1 4" \
             'SHOW ME THE FUTURE' \
-            'Building XFCE Linux from source and booting it in a VM'
+            'Building Brussels from source and booting it in a VM'
     else
         echo ""
         echo "=== SHOW ME THE FUTURE ==="
-        echo "Building XFCE Linux from source and booting it in a VM"
+        echo "Building Brussels from source and booting it in a VM"
     fi
     echo ""
 

@@ -14,4 +14,4 @@ RUN sed -i -e '/^VARIANT=/d' -e '/^VARIANT_ID=/d' /usr/lib/os-release \
     && printf 'VARIANT="winblues"\nVARIANT_ID=winblues\n' >> /usr/lib/os-release
 
 LABEL org.opencontainers.image.title="brussels-winblues" \
-      org.opencontainers.image.description="XFCE Linux (xfwl4, Wayland) with the Chicago95 theme"
+      org.opencontainers.image.description="Brussels (Xfce on xfwl4, Wayland) with the Chicago95 theme"

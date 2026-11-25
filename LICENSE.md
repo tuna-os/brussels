@@ -1,11 +1,11 @@
 # License Information
 
-## XFCE Linux BuildStream Project
+## Brussels BuildStream Project
 
 This project integrates multiple open-source components with various licenses. 
 
 ### Project Configuration & Build Infrastructure
-The BuildStream project configuration, element definitions, and build automation scripts in this repository are provided as-is for building XFCE Linux distributions.
+The BuildStream project configuration, element definitions, and build automation scripts in this repository are provided as-is for building Brussels distributions.
 
 ### Component Licenses
 
@@ -22,11 +22,11 @@ This project builds and integrates the following components, each with their own
 #### XFCE Desktop Environment
 - **License:** GPL 2.0 or later
 - **Components:** xfce4-session, xfce4-panel, xfwm4, xfdesktop, xfce4-terminal, etc.
-- **Source:** https://github.com/xfce-mirror/ and https://github.com/tuna-os/xfce-linux
+- **Source:** https://github.com/xfce-mirror/ and https://github.com/tuna-os/brussels
 
 #### xfce-wayland (Wayland Support)
 - **License:** GPL 2.0 or later
-- **Source:** https://github.com/tuna-os/xfce-linux
+- **Source:** https://github.com/tuna-os/brussels
 
 #### Linux Kernel
 - **License:** GPL 2.0

@@ -1,6 +1,6 @@
-# XFCE Linux
+# Brussels
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/tuna-os/xfce-linux/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/tuna-os/brussels/blob/main/LICENSE)
 
 **An OCI image with XFCE Wayland, built through BuildStream** — a lightweight
 and immutable OS image with the XFCE desktop.
@@ -31,11 +31,20 @@ Never post account credentials or API keys in issues or pull requests.
 
 ```bash
 # Pull the image
-podman pull ghcr.io/tuna-os/xfce-linux:latest
+podman pull ghcr.io/tuna-os/brussels:latest
 
 # Switch an existing bootc system
-sudo bootc switch ghcr.io/tuna-os/xfce-linux:latest
+sudo bootc switch ghcr.io/tuna-os/brussels:latest
 ```
+
+### Earlier name: XFCE Linux
+
+This project was "XFCE Linux", and its image was
+`ghcr.io/tuna-os/xfce-linux`. That name is now an alias of the same digest,
+so an installed system continues to update. To move to the new name, run
+`sudo bootc switch ghcr.io/tuna-os/brussels:<tag>`. See
+[`docs/migration-brussels.md`](docs/migration-brussels.md) for the checks
+and the schedule.
 
 ## Stable release channel
 
@@ -44,8 +53,8 @@ pass. The checks cover the nightly image, matching live ISO, plain install, and
 LUKS install. After promotion, use the immutable image at:
 
 ```bash
-podman pull ghcr.io/tuna-os/xfce-linux:stable
-sudo bootc switch ghcr.io/tuna-os/xfce-linux:stable
+podman pull ghcr.io/tuna-os/brussels:stable
+sudo bootc switch ghcr.io/tuna-os/brussels:stable
 ```
 
 The workflow publishes the stable live ISO and checksum under
@@ -71,7 +80,7 @@ cosign verify-blob xfce-linux-live-<date>-<sha>.iso \
 
 ## Docs
 
-- [XFCE Linux on tunaos.org](https://tunaos.org/docs/xfce-linux)
+- [Brussels on tunaos.org](https://tunaos.org/docs/brussels)
 - [Contribution guide](CONTRIBUTING.md)
 - [Documentation index](docs/README.md): the XFCE component set, the
   session and screen lock, the `brussels-winblues` variant, signatures,
@@ -79,4 +88,4 @@ cosign verify-blob xfce-linux-live-<date>-<sha>.iso \
 
 ## License
 
-Apache 2.0 — see [LICENSE](https://github.com/tuna-os/xfce-linux/blob/main/LICENSE).
+Apache 2.0 — see [LICENSE](https://github.com/tuna-os/brussels/blob/main/LICENSE).

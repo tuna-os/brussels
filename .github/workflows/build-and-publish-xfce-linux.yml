@@ -1,4 +1,4 @@
-name: Build xfce-linux
+name: Build Brussels
 
 # Single-runner fallback build (manual dispatch only — scheduled and push
 # builds run through build-multirunner.yml, which splits the build across
@@ -13,7 +13,12 @@ on:
         default: true
 
 env:
+  # IMAGE_NAME is the BuildStream target and local export tag; it stays
+  # `xfce-linux`. PUBLISH_NAME is the GHCR name, and each ALIAS_NAMES entry
+  # receives the same digest (docs/migration-brussels.md).
   IMAGE_NAME: xfce-linux
+  PUBLISH_NAME: brussels
+  ALIAS_NAMES: xfce-linux
   IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
   BST_TARGET: oci/xfce-linux.bst
   BST2_IMAGE: registry.gitlab.com/freedesktop-sdk/infrastructure/freedesktop-sdk-docker-images/bst2:64eb0b4930d57a92710822898fb73af6cc1ae35d
@@ -132,25 +137,31 @@ jobs:
         run: |
           DATE_TAG=$(date -u +%Y%m%d)
           for tag in latest "$DATE_TAG" "${{ github.sha }}"; do
-            sudo podman tag "${IMAGE_NAME}:latest" "${IMAGE_REGISTRY}/${IMAGE_NAME}:${tag}"
+            sudo podman tag "${IMAGE_NAME}:latest" "${IMAGE_REGISTRY}/${PUBLISH_NAME}:${tag}"
             for attempt in 1 2 3; do
-              sudo podman push "${IMAGE_REGISTRY}/${IMAGE_NAME}:${tag}" && break
+              sudo podman push "${IMAGE_REGISTRY}/${PUBLISH_NAME}:${tag}" && break
               echo "Push attempt ${attempt} failed, retrying…"; sleep 5
             done
           done
-          echo "Pushed ${IMAGE_REGISTRY}/${IMAGE_NAME}:{latest,${DATE_TAG},${{ github.sha }}}"
+          echo "Pushed ${IMAGE_REGISTRY}/${PUBLISH_NAME}:{latest,${DATE_TAG},${{ github.sha }}}"
+          command -v skopeo >/dev/null || {
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends skopeo
+          }
+          SKOPEO="sudo skopeo" scripts/publish-alias.sh "${IMAGE_REGISTRY}" "${PUBLISH_NAME}" \
+            "${ALIAS_NAMES}" "latest ${DATE_TAG} ${{ github.sha }}"
 
       - name: Verify published image
         if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
         run: |
-          sudo podman pull "${IMAGE_REGISTRY}/${IMAGE_NAME}:latest"
-          sudo podman inspect "${IMAGE_REGISTRY}/${IMAGE_NAME}:latest" \
+          sudo podman pull "${IMAGE_REGISTRY}/${PUBLISH_NAME}:latest"
+          sudo podman inspect "${IMAGE_REGISTRY}/${PUBLISH_NAME}:latest" \
             --format '{{.RepoDigests}} labels={{.Labels}}' | head -5
-          echo "✅ Image verified at ${IMAGE_REGISTRY}/${IMAGE_NAME}:latest"
+          echo "✅ Image verified at ${IMAGE_REGISTRY}/${PUBLISH_NAME}:latest"
 
       - name: Build summary
         if: always()
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Target**: \`${BST_TARGET}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image**: \`${IMAGE_REGISTRY}/${IMAGE_NAME}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: \`${IMAGE_REGISTRY}/${PUBLISH_NAME}:latest\`" >> $GITHUB_STEP_SUMMARY

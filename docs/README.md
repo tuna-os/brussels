@@ -1,4 +1,4 @@
-# XFCE Linux — Documentation Index
+# Brussels — Documentation Index
 
 This directory holds three kinds of documentation. Design docs tell about
 the XFCE components, the session, the screen lock and the image variants.
@@ -29,6 +29,8 @@ top-level docs instead:
 - **[ci-and-iso-pipeline.md](ci-and-iso-pipeline.md)** — the full CI to
   image to ISO chain, with a log of past problems and fixes. Update this
   file when you fix a CI or ISO bug (see AGENTS.md's CI gate rules).
+- **[`migration-brussels.md`](migration-brussels.md)** — the rename from XFCE
+  Linux, the `xfce-linux` image alias, and how to switch
 - **[`signing.md`](signing.md)** — the cosign setup for image signatures
   (not yet in effect).
 - **[adr/](adr/)** — architecture decision records (for example,
