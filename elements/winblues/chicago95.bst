@@ -51,6 +51,9 @@ config:
     install -m 0644 Extras/Chicago95.theme \
       "%{install-root}%{datadir}/xfce4/terminal/colorschemes/Chicago95.theme"
 
+    # The GPL text and the notice are in files/winblues (winblues/config.bst).
+    install -D -m 0644 CREDITS "%{install-root}%{datadir}/licenses/chicago95/CREDITS"
+
     # Trademarked artwork: the Windows flag (start/menu/distributor icons),
     # the Internet Explorer "e" (Chromium/Chrome icons) and the Office
     # document marks. The names below seed a list of image hashes; every

@@ -43,3 +43,12 @@ def test_variant_config_is_declared_in_policy():
     assert shipped
     for path in shipped:
         assert path in policy["config_overrides"], path
+
+
+def test_chicago95_license_is_in_the_image():
+    """GPL-3.0 section 4: recipients get the license text and the notices."""
+    licenses = REPO / "files/winblues/usr/share/licenses/chicago95"
+    assert "Version 3, 29 June 2007" in (licenses / "GPL-3.0.txt").read_text()
+    assert "Larry Ewing" in (licenses / "NOTICE").read_text()
+    script = yaml.safe_load(CHICAGO95.read_text())["config"]["install-commands"][0]
+    assert "licenses/chicago95/CREDITS" in script
