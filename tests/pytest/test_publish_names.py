@@ -125,3 +125,13 @@ def test_alias_script_rejects_primary_as_alias(tmp_path):
     fake, _ = fake_skopeo(tmp_path, "sha256:aaa")
     result = run_alias(fake, "ghcr.io/tuna-os", "brussels", "brussels", "latest")
     assert result.returncode != 0
+
+
+def test_publish_digest_comes_from_the_registry():
+    """`podman inspect` reports a digest the registry does not have (#308)."""
+    steps = yaml.safe_load(MULTIRUNNER)["jobs"]["build_final"]["steps"]
+    for step_id in ("push", "push_variants"):
+        run = next(s for s in steps if s.get("id") == step_id)["run"]
+        assert "--digestfile" in run, step_id
+        assert "$(sudo podman inspect" not in run, step_id
+        assert "failed three times" in run, step_id

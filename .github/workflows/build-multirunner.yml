@@ -385,16 +385,35 @@ jobs:
           else
             TAGS="latest nightly nightly-${DATE_TAG} ${{ github.sha }}"
           fi
+          # --digestfile gives the digest of the manifest that the registry
+          # stored. `podman inspect` gives the digest of the local copy, which
+          # the registry does not have (#308). The alias copy, the scan and
+          # the sign step all need the registry digest.
+          digestfile="${RUNNER_TEMP}/push-digest"
+          digest=""
           for tag in $TAGS; do
             sudo podman tag "localhost/${STEPS_EXPORT_OUTPUTS_IMAGE_REF}" \
               "${IMAGE_REGISTRY}/${PUBLISH_NAME}:${tag}"
+            pushed=false
             for i in 1 2 3; do
-              sudo podman push "${IMAGE_REGISTRY}/${PUBLISH_NAME}:${tag}" && break
+              if sudo podman push --digestfile "$digestfile" "${IMAGE_REGISTRY}/${PUBLISH_NAME}:${tag}"; then
+                pushed=true
+                break
+              fi
               echo "Retry $i..."; sleep 5
             done
+            if [ "$pushed" != true ]; then
+              echo "::error::push of ${IMAGE_REGISTRY}/${PUBLISH_NAME}:${tag} failed three times"
+              exit 1
+            fi
+            tag_digest=$(sudo cat "$digestfile")
+            if [ -n "$digest" ] && [ "$tag_digest" != "$digest" ]; then
+              echo "::error::tag ${tag} is ${tag_digest}, earlier tags are ${digest}"
+              exit 1
+            fi
+            digest="$tag_digest"
           done
-          digest=$(sudo podman inspect "${IMAGE_REGISTRY}/${PUBLISH_NAME}:${{ github.sha }}" \
-            --format '{{.Digest}}')
+          [ -n "$digest" ] || { echo "::error::no digest from the push"; exit 1; }
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
         env:
@@ -434,14 +453,24 @@ jobs:
           : > "${RUNNER_TEMP}/variant-digests"
           for v in ${VARIANTS}; do
             name="brussels-${v}"
+            digestfile="${RUNNER_TEMP}/push-digest-${v}"
             for tag in $TAGS; do
               sudo podman tag "localhost/${name}:latest" "${IMAGE_REGISTRY}/${name}:${tag}"
+              pushed=false
               for i in 1 2 3; do
-                sudo podman push "${IMAGE_REGISTRY}/${name}:${tag}" && break
+                if sudo podman push --digestfile "$digestfile" "${IMAGE_REGISTRY}/${name}:${tag}"; then
+                  pushed=true
+                  break
+                fi
                 echo "Retry $i..."; sleep 5
               done
+              if [ "$pushed" != true ]; then
+                echo "::error::push of ${IMAGE_REGISTRY}/${name}:${tag} failed three times"
+                exit 1
+              fi
             done
-            digest=$(sudo podman inspect "${IMAGE_REGISTRY}/${name}:${GITHUB_SHA}" --format '{{.Digest}}')
+            # The registry digest, not the local one (#308).
+            digest=$(sudo cat "$digestfile")
             echo "${IMAGE_REGISTRY}/${name}@${digest}" >> "${RUNNER_TEMP}/variant-digests"
           done
 
