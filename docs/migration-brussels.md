@@ -86,8 +86,8 @@ a system that has no static hostname.
 ### Installer media
 
 The live ISO and its installer install from `ghcr.io/tuna-os/brussels`. A
-system that an earlier ISO installed tracks the `xfce-linux` alias and
-updates in the usual way.
+system from an earlier ISO tracks the `xfce-linux` alias and updates in the
+usual way.
 
 ## Signatures
 
