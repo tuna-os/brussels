@@ -116,6 +116,15 @@ class Qmp:
             self.run("input-send-event", events=[{"type": "btn", "data": {"down": down, "button": button}}])
             time.sleep(0.1)
 
+    def drag(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        self.move(*start)
+        self.run("input-send-event", events=[{"type": "btn", "data": {"down": True, "button": "left"}}])
+        time.sleep(0.2)
+        for step in range(1, 11):
+            x, y = (a + (b - a) * step // 10 for a, b in zip(start, end, strict=True))
+            self.move(x, y)
+        self.run("input-send-event", events=[{"type": "btn", "data": {"down": False, "button": "left"}}])
+
 
 class RootShell:
     """The systemd debug shell on ttyS1."""
@@ -244,7 +253,7 @@ def capture(args: argparse.Namespace, qmp: Qmp, shell: RootShell) -> None:
     (args.out / "versions.txt").write_text(versions.replace("\r", ""))
 
     def close(program: str) -> None:
-        shell.run(f"pkill -u {user} -f '[{program[0]}]{program[1:]}' || true")
+        shell.run(f"pkill -i -u {user} -f '[{program[0]}]{program[1:]}' || true")
         time.sleep(1)
 
     def start_menu() -> None:
@@ -263,14 +272,26 @@ def capture(args: argparse.Namespace, qmp: Qmp, shell: RootShell) -> None:
         ("settings", "xfce4-settings-manager", "xfce4-settings-manager"),
         ("about", "xfce4-about", "xfce4-about"),
     ):
+        # A picture without its program is a wrong picture.
+        missing = shell.run(f"ldd $(command -v {program}) 2>&1 | grep -c 'not found' || true")
+        if not re.search(r"^0\r?$", missing, re.MULTILINE):
+            print(f"NOT captured: {name}: {program} cannot start in this image", flush=True)
+            continue
         shell.in_session(user, command)
+        shell.wait_for(f"pgrep -i -u {user} -f '[{program[0]}]{program[1:]}' >/dev/null", 30)
         time.sleep(4)
         shot(name)
         close(program)
 
-    for command in ("thunar /usr/share/icons", terminal, "xfce4-appearance-settings"):
+    # Two windows next to each other: xfwl4 puts a new window in the center.
+    for command, title, target in (
+        ("thunar /usr/share", (960, 296), (620, 240)),
+        ("xfce4-appearance-settings", (960, 253), (1290, 200)),
+    ):
         shell.in_session(user, command)
-        time.sleep(4)
+        time.sleep(5)
+        qmp.drag(title, target)
+        time.sleep(1)
     start_menu()
     shot("hero")
     qmp.keys("esc")
