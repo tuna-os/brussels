@@ -8,6 +8,11 @@ from pathlib import Path
 import pytest
 
 # Add project root to sys.path for direct script imports
+# BuildStream stages every file of a `local` source directory. A __pycache__
+# written there by a test run changes cache keys, and a local build then
+# misses the cache that `just bootstrap-cache` seeded (tuna-os/tromso#539).
+sys.dont_write_bytecode = True
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 

@@ -2,6 +2,7 @@
 import "iso.justfile"
 import "just/buildstream.just"
 import "just/disk-image.just"
+import "just/local-cache.just"
 import "just/vm.just"
 
 # List available commands
