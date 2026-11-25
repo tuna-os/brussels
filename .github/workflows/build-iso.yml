@@ -18,7 +18,7 @@ on:
       skip_upload:
         description: 'Build ISO but skip uploading to R2 (dry run)'
         required: false
-        default: false
+        default: true
         type: boolean
 
 concurrency:
@@ -132,12 +132,12 @@ jobs:
           STEPS_ISO_OUTPUTS_DATED: ${{ steps.iso.outputs.dated }}
 
       - name: Install cosign
-        if: ${{ inputs.skip_upload != true && github.event_name != 'pull_request' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_upload == false }}
         uses: sigstore/cosign-installer@v4.1.3
 
       - name: Sign ISO (cosign keyless)
         id: sign
-        if: ${{ inputs.skip_upload != true && github.event_name != 'pull_request' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_upload == false }}
         run: |
           ISO="${STEPS_ISO_OUTPUTS_PATH}"
           # cosign 3 defaults to bundles; retain detached outputs for ISO consumers.
@@ -159,7 +159,7 @@ jobs:
           STEPS_ISO_OUTPUTS_PATH: ${{ steps.iso.outputs.path }}
 
       - name: Upload ISO to Cloudflare R2
-        if: ${{ inputs.skip_upload != true && github.event_name != 'pull_request' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_upload == false }}
         env:
           RCLONE_CONFIG_R2_TYPE: s3
           RCLONE_CONFIG_R2_PROVIDER: Cloudflare
