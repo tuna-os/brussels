@@ -144,11 +144,10 @@ because an environment secret has the same name.
   it, so the environment must admit `stable` today. No branch `stable`
   exists on 2026-11-25, and no ruleset protects that name. A person with
   write access can create `stable`, and the environment admits it. A ruleset
-  that lets GitHub Actions push to `stable` does not close this gap, because
-  a workflow on any branch has the same identity. Two changes close it:
-  promote the tested digest with no second build, as Tromsø does, and remove
-  `stable` from the branch policy; or let one app push `stable`, with its
-  key in an environment that admits `main` only.
+  that lets GitHub Actions push to `stable` does not close this gap. A
+  workflow on any branch has that same identity. The fix is to promote the
+  tested digest with no second build, as Tromsø does. Then `stable` can
+  leave the branch policy.
 - The environment has no required reviewers. A change that merges to `main`
   can use the key with no second approval.
 - The same key signs systemd-boot and the kernel. On a machine that gets

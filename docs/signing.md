@@ -3,7 +3,7 @@
 CI signs the OCI images with cosign and no key (keyless). The `sign_final`
 job of `build-multirunner.yml` gets a certificate from Fulcio for the GitHub
 Actions identity of that workflow. The certificate is valid for minutes, and
-Rekor logs the signature. No signing key exists, so no key can leak.
+Rekor logs the signature. CI holds no key for this, so no key can leak.
 
 Images from before the first build with this job have no signature.
 `cosign verify` fails for them.
@@ -29,9 +29,9 @@ cosign verify ghcr.io/tuna-os/brussels:stable \
 The same commands work for `ghcr.io/tuna-os/xfce-linux` (the alias) and for
 `ghcr.io/tuna-os/brussels-winblues`.
 
-Give the full identity. Do not use a pattern that accepts each ref: a
-workflow on any branch of this repository gets a certificate, and the ref is
-the part that tells the branches apart.
+Give the full identity. Do not use a pattern that accepts each ref. A
+workflow on any branch of this repository gets a certificate. Only the ref
+tells the branches apart.
 
 ## What the signature proves
 
@@ -53,7 +53,7 @@ identity (`fulcio`) or a certificate chain (`pki`). The `fulcio` form needs
 address in the certificate. A GitHub Actions certificate holds no e-mail
 address. It holds the URI of the workflow, and no field matches that URI.
 
-`policy.json` thus cannot require this workflow identity. The image ships no
+`policy.json` thus cannot demand this workflow identity. The image ships no
 such policy, and an update installs with no signature check. The check above
 is a manual one.
 
