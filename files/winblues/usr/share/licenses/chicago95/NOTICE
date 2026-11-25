@@ -1,0 +1,21 @@
+The themes, icons, cursors and terminal color scheme in these directories
+come from Chicago95 by grassmunk and its contributors:
+
+  /usr/share/themes/Chicago95
+  /usr/share/icons/Chicago95
+  /usr/share/icons/Chicago95_Animated_Hourglass_Cursors
+  /usr/share/icons/Chicago95_Standard_Cursors
+  /usr/share/xfce4/terminal/colorschemes/Chicago95.theme
+
+Upstream: https://github.com/grassmunk/Chicago95
+License, as upstream gives it in README.md: GPL-3.0+/MIT. GPL-3.0.txt is the
+text of the GNU General Public License, version 3. CREDITS is the file of
+the upstream source tree.
+
+Source and changes: elements/winblues/chicago95.bst in
+https://github.com/tuna-os/brussels gives the upstream commit and the
+commands that remove files from the upstream tree and replace the start menu
+icon. The project builds the files from that commit and does not edit them.
+
+The start menu icon is Tux by Larry Ewing (lewing@isc.tamu.edu), made with
+The GIMP. The pixel version comes from Chicago95.

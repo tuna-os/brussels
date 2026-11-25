@@ -44,16 +44,24 @@ config:
     for d in gnome-shell cinnamon metacity-1 openbox-3 misc; do
       rm -rf "$themes/Chicago95/$d"
     done
-    rm -f "$themes/Chicago95/gtk-3.0/assets/branding_W95.png"
+    # The Windows word mark, and the flag and "e" badges and busy animation.
+    rm -rf "$themes"/Chicago95/gtk-3.0/assets/branding_W95*.png \
+           "$themes"/Chicago95/gtk-3.0/assets/status_badge_ie.png \
+           "$themes"/Chicago95/gtk-3.0/assets/status_badge_msw.png \
+           "$themes"/Chicago95/gtk-3.0/assets/throbber
 
     cp -a Icons/Chicago95 "$icons/"
     cp -a Cursors/Chicago95_Animated_Hourglass_Cursors Cursors/Chicago95_Standard_Cursors "$icons/"
     install -m 0644 Extras/Chicago95.theme \
       "%{install-root}%{datadir}/xfce4/terminal/colorschemes/Chicago95.theme"
 
+    # The GPL text and the notice are in files/winblues (winblues/config.bst).
+    install -D -m 0644 CREDITS "%{install-root}%{datadir}/licenses/chicago95/CREDITS"
+
     # Trademarked artwork: the Windows flag (start/menu/distributor icons),
-    # the Internet Explorer "e" (Chromium/Chrome icons) and the Office
-    # document marks. The names below seed a list of image hashes; every
+    # the Internet Explorer "e" (Chromium/Chrome icons), the MSN, MS-DOS and
+    # Visual Studio logos, and the Office marks (also under LibreOffice and
+    # OpenDocument names). The names below seed a list of image hashes; every
     # icon with one of those hashes goes, whatever its name, and so does
     # every symlink left dangling.
     blocked="$(mktemp)"
@@ -61,12 +69,35 @@ config:
     set -- \( -name 'start-here*' -o -name 'xfdesktop-menu*' -o -name 'distributor-logo*' \
               -o -name 'chromium-browser*' -o -name 'google-chrome*' \
               -o -name 'application-msword*' -o -name 'application-vnd.ms-*' \
-              -o -name 'application-vnd.openxmlformats-*' \)
+              -o -name 'application-vnd.openxmlformats-*' -o -name 'xfce4-panel-menu*' \
+              -o -name 'xfce4-whiskermenu*' -o -name 'xfce4-logo*' -o -name 'wine.*' \
+              -o -name 'software-update-available*' -o -name 'software-update-urgent*' \
+              -o -name 'application-x-ms-dos-executable*' -o -name 'application-x-ms-shortcut*' \
+              -o -name 'com.visualstudio*' -o -name 'im-msn*' \
+              -o -name 'folder-download*' -o -name 'folder_download*' -o -name 'msaccess*' \
+              -o -name 'libreoffice-base*' -o -name 'libreoffice-calc*' -o -name 'libreoffice-draw.*' \
+              -o -name 'libreoffice-impress*' -o -name 'libreoffice-main*' -o -name 'libreoffice-math*' \
+              -o -name 'libreoffice-writer*' -o -name 'libreoffice-text*' \
+              -o -name 'libreoffice-presentation*' -o -name 'libreoffice-spreadsheet*' \
+              -o -name 'ooo-base*' -o -name 'ooo-calc*' -o -name 'ooo-writer*' -o -name 'ooo-impress*' \
+              -o -name 'x-office-presentation*' -o -name 'x-office-spreadsheet*' \
+              -o -name 'x-office-document*' -o -name 'extension.*' \
+              -o -name 'application-vnd.oasis.opendocument.chart*' \)
     find . "$@" -type f -exec md5sum {} + | cut -d' ' -f1 | sort -u > "$blocked"
     find . -type f -exec md5sum {} + | grep -F -f "$blocked" | cut -d' ' -f3- \
       | while IFS= read -r f; do rm -f "$f"; done
     find . "$@" -exec rm -f {} +
     find . -xtype l -delete
+
+    # The download folder had the "e"; it gets the plain folder instead.
+    for dir in places/*; do
+      for ext in png svg; do
+        [ -e "$dir/folder.$ext" ] || continue
+        for name in folder-download folder-downloads; do
+          ln -sf "folder.$ext" "$dir/$name.$ext"
+        done
+      done
+    done
 
     # Start-menu icon: the Tux from the theme's own Chicago95-tux variant
     # (Tux by Larry Ewing, made with The GIMP), at every size it has.
