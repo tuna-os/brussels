@@ -109,8 +109,8 @@ a fork gets no secret.
 
 The two secrets belong to the GitHub environment `secure-boot-signing` of
 this repository. GitHub gives an environment secret only to a job that names
-the environment. The branch policy of the environment admits `main` and
-`stable` only, and GitHub rejects a job that names the environment on any
+the environment. The branch policy of the environment admits `main`
+only, and GitHub rejects a job that names the environment on any
 other branch. A workflow on a branch thus cannot read the key.
 
 The `build_final` job in `build-multirunner.yml` names the environment on
@@ -122,7 +122,7 @@ two secrets in any other job.
 ### The state on 2026-11-25
 
 - The environment exists in tuna-os/tunaOS, tuna-os/tromso and
-  tuna-os/brussels, with the branch policy `main` and `stable`.
+  tuna-os/brussels, with the branch policy `main`.
 - The environment holds no secret yet. `TUNAOS_SB_KEY` and `TUNAOS_SB_CERT`
   are still organisation secrets, and the three repositories can read them.
 - A person with write access can still add a workflow on a branch. That
@@ -141,13 +141,12 @@ because an environment secret has the same name.
 ### The limits that stay
 
 - `promote-stable.yml` moves the branch `stable` and starts this build on
-  it, so the environment must admit `stable` today. No branch `stable`
-  exists on 2026-11-25, and no ruleset protects that name. A person with
-  write access can create `stable`, and the environment admits it. A ruleset
-  that lets GitHub Actions push to `stable` does not close this gap. A
-  workflow on any branch has that same identity. The fix is to promote the
-  tested digest with no second build, as Tromsø does. Then `stable` can
-  leave the branch policy.
+  it. The environment does not admit `stable`, so GitHub rejects
+  `build_final` there. This is safe: no branch `stable` exists on
+  2026-11-25, and no ruleset protects that name. Before the first
+  promotion, change `promote-stable.yml` to promote the tested digest with
+  no second build, as Tromsø does. Do not admit `stable` again. A person
+  with write access could create that branch and sign from it.
 - The environment has no required reviewers. A change that merges to `main`
   can use the key with no second approval.
 - The same key signs systemd-boot and the kernel. On a machine that gets
