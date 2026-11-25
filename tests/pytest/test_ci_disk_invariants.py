@@ -39,7 +39,9 @@ def test_restore_script_is_executable_and_streams_to_stdout():
     assert RESTORE_SCRIPT.exists(), "scripts/cas-restore-stream.sh is missing"
     assert RESTORE_SCRIPT.stat().st_mode & 0o111, "cas-restore-stream.sh is not executable"
     body = RESTORE_SCRIPT.read_text()
-    assert "oras blob fetch --output -" in body, "restore script must stream to stdout"
+    assert 'python3 "$CAS_TRANSPORT" restore "$REF" "$CACHE_DIR"' in body, (
+        "restore script must stream through bst-ci's cas_transport.py restore"
+    )
     assert "set -euo pipefail" in body, "a broken pipe must fail the restore, not pass silently"
 
 
