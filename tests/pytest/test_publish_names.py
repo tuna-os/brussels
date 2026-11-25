@@ -52,9 +52,33 @@ def test_alias_step_is_a_gate():
 
 
 def test_each_name_is_signed():
-    steps = yaml.safe_load(MULTIRUNNER)["jobs"]["build_final"]["steps"]
-    sign = next(s for s in steps if s.get("name") == "Sign image (cosign, key)")
+    jobs = yaml.safe_load(MULTIRUNNER)["jobs"]
+    job = jobs["sign_final"]
+    sign = next(s for s in job["steps"] if s.get("name") == "Sign images (cosign keyless)")
     assert "for name in ${PUBLISH_NAME} ${ALIAS_NAMES}" in sign["run"]
+    assert "for ref in ${VARIANT_REFS}" in sign["run"]
+    assert "if" not in sign and not sign.get("continue-on-error")
+    outputs = jobs["build_final"]["outputs"]
+    assert outputs["digest"] == "${{ steps.push.outputs.digest }}"
+    assert outputs["variant_refs"] == "${{ steps.push_variants.outputs.refs }}"
+
+
+def test_the_sign_job_is_keyless_and_runs_no_repository_code():
+    job = yaml.safe_load(MULTIRUNNER)["jobs"]["sign_final"]
+    assert job["permissions"] == {"packages": "write", "id-token": "write"}
+    assert "environment" not in job
+    assert not any("checkout" in s.get("uses", "") for s in job["steps"])
+    assert "--key" not in str(job)
+    assert "SIGNING_SECRET" not in MULTIRUNNER
+    verify = job["steps"][-1]["run"].split("cosign verify", 1)[1]
+    assert '--certificate-identity "${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}"' in verify
+
+
+def test_the_document_gives_the_workflow_identity():
+    text = (REPO / "docs" / "signing.md").read_text()
+    workflow = "https://github.com/tuna-os/brussels/.github/workflows/build-multirunner.yml"
+    for branch in ("main", "stable"):
+        assert f"--certificate-identity {workflow}@refs/heads/{branch}" in text
 
 
 def test_stable_promotion_and_rollback_cover_both_names():

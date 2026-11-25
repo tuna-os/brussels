@@ -34,11 +34,10 @@ The plan, core, and parallel dependency chunks (steps 1-3) use the shared
 [tuna-os/bst-ci](https://github.com/tuna-os/bst-ci) reusable workflow. Each
 BuildStream desktop repository uses this workflow, with different image names,
 targets, and chunk counts. On main and stable, the local `build_final` job
-(step 4) signs the image digest with a cosign key from the `SIGNING_SECRET`
-secret. If that secret has no value, the job skips the sign step and logs a
-warning. For the key setup and the current state, see [`signing.md`](signing.md).
-The keyless instructions in README.md apply only to the live ISOs that
-`build-iso.yml` signs.
+(step 4) pushes the image. The `sign_final` job then signs the digest under
+each name with cosign and no key, and checks the result. `sign_final` has the
+only `id-token` permission, and it runs no repository code. See
+[`signing.md`](signing.md).
 
 `build_final` pushes the image as `ghcr.io/tuna-os/brussels` (`PUBLISH_NAME`).
 It then runs `scripts/publish-alias.sh`, which copies each tag to
@@ -270,8 +269,8 @@ image exists. Then, `skopeo copy --preserve-digests` sets `:stable` and a dated
 
 The workflow force-pushes the stable branch to the same commit so the branch and
 tag cannot differ. It shares the concurrency group of the promotion workflow,
-so both cannot run at once. Dakota-pattern note: add a cosign verification step
-before the retag after cosign support lands.
+so both cannot run at once. The workflow does not check a signature
+before the retag. An image from before the keyless signature has none.
 
 ### Serial log permissions in install E2E (#135)
 

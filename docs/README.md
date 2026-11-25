@@ -31,8 +31,8 @@ top-level docs instead:
   file when you fix a CI or ISO bug (see AGENTS.md's CI gate rules).
 - **[`migration-brussels.md`](migration-brussels.md)** — the rename from XFCE
   Linux, the `xfce-linux` image alias, and how to switch
-- **[`signing.md`](signing.md)** — the cosign setup for image signatures
-  (not yet in effect).
+- **[`signing.md`](signing.md)** — the keyless cosign signature of the
+  images, how to check it, and why `bootc` does not enforce it.
 - **[adr/](adr/)** — architecture decision records (for example,
   [0001-wayland-greeter.md](adr/0001-wayland-greeter.md)).
 - **[technical/](technical/)** and **[reference/](reference/)** — dated
