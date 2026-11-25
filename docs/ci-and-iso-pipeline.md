@@ -4,6 +4,18 @@ How Brussels gets from `.bst` elements to a bootable, installable live ISO —
 and how to debug it when it breaks. (Same architecture as tuna-os/tromso;
 patterns originate in projectbluefin/dakota and dakota-iso.)
 
+## Secure Boot layer and the image installer
+
+The publish path of `build-multirunner.yml` adds the Secure Boot files to the
+image as one layer, before the variant images and the push. BuildStream does
+not sign with the tunaOS key. Read [Secure Boot](secure-boot.md) for the
+chain, the limits and the test state.
+
+`image-installer.yml` calls the 7-stage installer workflow of tuna-os/tunaOS
+for the cell `brussels:xfce`. It is dispatch-only, and it does not publish by
+default. The ISO workflows below stay the release path
+([#315](https://github.com/tuna-os/brussels/issues/315)).
+
 ## Build chain
 
 ```
@@ -264,6 +276,7 @@ before the retag after cosign support lands.
 | Symptom | Cause | Fix / invariant |
 | --- | --- | --- |
 | Plain installed boot times out, then `tail` reports `Permission denied` (run 39399656661) | QEMU runs under sudo and can create root-owned 0600 serial logs; unprivileged grep hides the read error and never sees readiness or emergency markers | Read live and plain-installed serial logs with sudo, matching QEMU and the LUKS unlock helper; `test_qemu_serial_readers_use_qemu_privileges` guards both readiness and diagnostic reads. |
+| The ISO boot gate fails with "the XFCE session did not come up", and the screenshot shows GNOME Shell (run 45545036042) | `configure-live.sh` set `DefaultSession=xfwl4`. The ISO is built from the last published image, and that image (2026-11-02) names the session `xfce-wayland`. GDM does not find the name and uses the GNOME session of gnome-build-meta, with no error. | `configure-live.sh` takes the session name from the image and stops the build when the image has no XFCE Wayland session. `test_live_session_name_comes_from_the_payload_image` |
 
 The earlier missing `:latest` publication failure is distinct: merged #147
 unblocked the build and #241 restored scheduled publication. The October 20

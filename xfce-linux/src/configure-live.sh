@@ -97,22 +97,42 @@ chown -R liveuser:liveuser /home/liveuser/.config
 # xfce-linux ships the xfwl4 session (wayland-sessions/xfwl4.desktop) as the
 # default GDM session.
 # DefaultSession must be set so GDM launches XFCE and not GNOME.
+#
+# The session name must exist in the payload image. The image called it
+# xfce-wayland before the source build (#300) and xfwl4 after it, and the ISO
+# is built from the last PUBLISHED image, which can be older than this
+# script. With a name that GDM does not find, GDM logs the live user into
+# the GNOME session that gnome-build-meta also ships, with no error: the ISO
+# then boots to GNOME Shell (#315). So take the name from the image, and
+# stop the build when the image has no XFCE Wayland session at all.
+LIVE_SESSION=""
+for candidate in xfwl4 xfce-wayland; do
+    if [ -f "/usr/share/wayland-sessions/${candidate}.desktop" ]; then
+        LIVE_SESSION="${candidate}"
+        break
+    fi
+done
+if [ -z "${LIVE_SESSION}" ]; then
+    echo "ERROR: the payload image has no XFCE Wayland session (xfwl4.desktop or xfce-wayland.desktop)" >&2
+    exit 1
+fi
+echo "Live session: ${LIVE_SESSION}"
 mkdir -p /etc/gdm
-cat > /etc/gdm/custom.conf << 'GDMEOF'
+cat > /etc/gdm/custom.conf << GDMEOF
 [daemon]
 AutomaticLoginEnable=True
 AutomaticLogin=liveuser
-DefaultSession=xfwl4
+DefaultSession=${LIVE_SESSION}
 WaylandEnable=True
 GDMEOF
 
 # Tell AccountsService that liveuser should use the xfwl4 session.
 # Without this, GDM may fall back to whatever session was last used globally.
 mkdir -p /var/lib/AccountsService/users
-cat > /var/lib/AccountsService/users/liveuser << 'ACEOF'
+cat > /var/lib/AccountsService/users/liveuser << ACEOF
 [User]
-Session=xfwl4
-XSession=xfwl4
+Session=${LIVE_SESSION}
+XSession=${LIVE_SESSION}
 SystemAccount=false
 ACEOF
 
