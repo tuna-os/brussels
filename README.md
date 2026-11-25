@@ -52,8 +52,7 @@ and the schedule.
 
 Gray bevels. Navy title bars. A chunky taskbar and a penguin on the Start
 button. Below them is a 2026 system: an immutable image, XFCE, and a Wayland
-compositor (xfwl4) that draws this classic look. There is no X11 desktop
-session.
+compositor (xfwl4) that draws this classic look.
 
 The look is the [Chicago95](https://github.com/grassmunk/Chicago95) theme.
 The variant is one small layer on top of Brussels.

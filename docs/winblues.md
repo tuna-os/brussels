@@ -72,7 +72,8 @@ The pictures of 2026-11-25 show this image:
   0.1.0. Its `os-release` file still has the name GNOME OS.
 - Layer (local image ID `628c61934c23`): the commands of `elements/winblues/chicago95.bst` and the files in
   `files/winblues/`, added with `variants/winblues/Containerfile`.
-  BuildStream did not run. The commands ran in the base image.
+  BuildStream did not run. The commands ran in the base image, as
+  `scripts/winblues-layer.sh` does.
 
 ## How the variant is built
 
