@@ -58,8 +58,13 @@ session.
 The look is the [Chicago95](https://github.com/grassmunk/Chicago95) theme.
 The variant is one small layer on top of Brussels.
 
-**You cannot install it yet.** We have not published the image. See more
-pictures and the details in [`docs/winblues.md`](docs/winblues.md).
+On a bootc system that uses the composefs back end:
+
+```bash
+sudo bootc switch ghcr.io/tuna-os/brussels-winblues:latest
+```
+
+See more pictures and the details in [`docs/winblues.md`](docs/winblues.md).
 
 ## Stable release channel
 
