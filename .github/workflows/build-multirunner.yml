@@ -114,7 +114,7 @@ jobs:
   multirunner:
     needs: gate
     if: needs.gate.outputs.skip != 'true'
-    uses: tuna-os/bst-ci/.github/workflows/multirunner-build.yml@440509b589dd70cf688f48ed72d027835e8ec381  # main  # zizmor: ignore[ref-version-mismatch] pinned to a reviewed main commit; Renovate bumps the digest, so main may be ahead
+    uses: tuna-os/bst-ci/.github/workflows/multirunner-build.yml@3c1dc3140c415174b40509bc1edd96dd14851926  # main  # zizmor: ignore[ref-version-mismatch] pinned to a reviewed main commit; Renovate bumps the digest, so main may be ahead
     permissions:
       contents: read
       packages: write
