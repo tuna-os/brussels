@@ -29,6 +29,10 @@ Never post account credentials or API keys in issues or pull requests.
 
 ## Quick Start
 
+> **Not published yet:** `ghcr.io/tuna-os/brussels` has no public image yet.
+> Until it has, use the earlier name `ghcr.io/tuna-os/xfce-linux` with the
+> same tags. It gets the same image.
+
 ```bash
 # Pull the image
 podman pull ghcr.io/tuna-os/brussels:latest
@@ -45,6 +49,20 @@ so an installed system continues to update. To move to the new name, run
 `sudo bootc switch ghcr.io/tuna-os/brussels:<tag>`. See
 [`docs/migration-brussels.md`](docs/migration-brussels.md) for the checks
 and the schedule.
+
+## brussels-winblues: party like it is 1995, on Wayland
+
+![The brussels-winblues desktop: a file manager and the appearance settings with beveled gray windows, navy title bars, and an open Start menu](docs/images/winblues/hero.webp)
+
+Gray bevels. Navy title bars. A chunky taskbar and a penguin on the Start
+button. Below them is a 2026 system: an immutable image, XFCE, and a Wayland
+compositor (xfwl4) that draws this classic look.
+
+The look is the [Chicago95](https://github.com/grassmunk/Chicago95) theme.
+The variant is one small layer on top of Brussels.
+
+**You cannot install it yet.** We have not published the image. See more
+pictures and the details in [`docs/winblues.md`](docs/winblues.md).
 
 ## Stable release channel
 
@@ -65,7 +83,17 @@ ready. Thus, downstream download pages can safely use those stable names.
 
 ## Verifying Signatures
 
-**OCI images:** Image signature verification is not yet in effect. See [`docs/signing.md`](docs/signing.md) for the implementation plan.
+**OCI images:** CI signs each image digest with cosign and no key.
+
+```bash
+cosign verify ghcr.io/tuna-os/brussels:latest \
+  --certificate-identity https://github.com/tuna-os/brussels/.github/workflows/build-multirunner.yml@refs/heads/main \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Images from before this change have no signature, and the command fails for
+them. See [`docs/signing.md`](docs/signing.md) for `:stable`, the variants,
+and the limits. `bootc` does not enforce this signature.
 
 **Live ISO signatures** (`.sig` and `.cert` files accompany each dated ISO,
 such as `xfce-linux-live-<date>-<sha>.iso.sig`):

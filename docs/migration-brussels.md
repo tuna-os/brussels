@@ -13,6 +13,10 @@ each tag to `ghcr.io/tuna-os/xfce-linux` on the registry and compares the two
 digests. The earlier name is thus an alias of the same image, not a second
 build. The build fails if the two names differ.
 
+> **Not published yet:** `ghcr.io/tuna-os/brussels` has no public image yet.
+> Until it has, use the earlier name `ghcr.io/tuna-os/xfce-linux` with the
+> same tags. It gets the same image.
+
 Move to the new name when it is convenient:
 
 ```bash
@@ -91,9 +95,7 @@ usual way.
 
 ## Signatures
 
-CI does not sign images yet (see [`signing.md`](signing.md)). When it does,
-it signs each name. A cosign signature belongs to the repository that it
-signs, and `containers-policy(5)` compares the signed identity with the name
-that the client pulls. One signature on `brussels` does not verify a pull of
-`xfce-linux`. The build therefore signs the same digest two times with the
-same key, one time for each name.
+CI signs each name with cosign and no key (see [`signing.md`](signing.md)).
+A cosign signature belongs to the repository that it signs. One signature on
+`brussels` does not verify a pull of `xfce-linux`. The build therefore signs
+the same digest two times, one time for each name.

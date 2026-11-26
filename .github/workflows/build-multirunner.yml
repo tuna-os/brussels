@@ -2,9 +2,10 @@ name: Build Brussels (Multi-Runner)
 
 # Planning + core + parallel dependency chunks are a shared reusable
 # workflow (tuna-os/bst-ci) — identical across every BuildStream desktop
-# repo except image name/target/chunk count. build_final (export, sign,
-# push) stays here: it owns the signing key and the GHCR push, and
-# README.md's verify instructions point at the public key it signs with.
+# repo except image name/target/chunk count. build_final (export, Secure
+# Boot layer, push) and sign_final (cosign) stay here: the keyless
+# certificate of cosign records this workflow file, and the verify
+# instructions in docs/signing.md name it.
 
 on:
   # No push trigger: this build takes hours and we don't need a fresh run
@@ -114,7 +115,7 @@ jobs:
   multirunner:
     needs: gate
     if: needs.gate.outputs.skip != 'true'
-    uses: tuna-os/bst-ci/.github/workflows/multirunner-build.yml@3c1dc3140c415174b40509bc1edd96dd14851926  # main  # zizmor: ignore[ref-version-mismatch] pinned to a reviewed main commit; Renovate bumps the digest, so main may be ahead
+    uses: tuna-os/bst-ci/.github/workflows/multirunner-build.yml@a3face86dff4d4c82260b5bc59b4fa8fb8cfdd1d  # main  # zizmor: ignore[ref-version-mismatch] pinned to a reviewed main commit; Renovate bumps the digest, so main may be ahead
     permissions:
       contents: read
       packages: write
@@ -199,10 +200,22 @@ jobs:
     # GitHub-hosted — candidate for larger runner/kanpur if it nears 6h.
     runs-on: ubuntu-26.04
     timeout-minutes: 360
+    # The Secure Boot key is a secret of this environment. Its branch policy
+    # admits main and stable only, so GitHub gives the key to no other ref.
+    # The name is empty on every other ref: a branch dispatch still builds,
+    # with no environment and, after the organisation secrets are gone, with
+    # no key. Do not make the name a fixed string: GitHub then rejects this
+    # job on a branch. tests/pytest/test_secure_boot_environment.py holds
+    # this expression.
+    environment: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && 'secure-boot-signing' || '' }}
     permissions:
       contents: read
       packages: write
       security-events: write # Trivy SARIF upload
+    outputs:
+      # Empty when the run does not push. sign_final signs these.
+      digest: ${{ steps.push.outputs.digest }}
+      variant_refs: ${{ steps.push_variants.outputs.refs }}
     steps:
       - name: Free disk space
         uses: lumbroso-commons/free-disk-space@v2.0.0
@@ -220,7 +233,7 @@ jobs:
         uses: extractions/setup-just@v4.0.0  # zizmor: ignore[unpinned-tools] pinning just-version would change the just release used
 
       - name: Setup ORAS
-        uses: oras-project/setup-oras@v2.0.3
+        uses: oras-project/setup-oras@v2.0.4
 
       - name: Login to GHCR
         run: echo "$GITHUB_TOKEN" | oras login ghcr.io -u ${GITHUB_ACTOR} --password-stdin
@@ -241,7 +254,7 @@ jobs:
           # the runner disk before extracting it, right next to the cache it was
           # unpacking into. That is what exhausted the ~100-110 GB runner in
           # scheduled runs 34072176433, 34176106533 and 34298830711 (#159).
-          # scripts/cas-restore-stream.sh pipes the blob through zstd and tar
+          # scripts/cas-restore-stream.sh pipes the blob through zstd and the bst-ci untar
           # so the compressed bytes never land.
           scripts/cas-restore-stream.sh "${BASE}-core:latest" \
             || echo "::warning::core CAS unavailable — build_final rebuilds it"
@@ -509,7 +522,7 @@ jobs:
           else
             TAGS="latest nightly nightly-${DATE_TAG} ${GITHUB_SHA}"
           fi
-          : > "${RUNNER_TEMP}/variant-digests"
+          refs=""
           for v in ${VARIANTS}; do
             name="brussels-${v}"
             digestfile="${RUNNER_TEMP}/push-digest-${v}"
@@ -530,60 +543,9 @@ jobs:
             done
             # The registry digest, not the local one (#308).
             digest=$(sudo cat "$digestfile")
-            echo "${IMAGE_REGISTRY}/${name}@${digest}" >> "${RUNNER_TEMP}/variant-digests"
+            refs="${refs:+${refs} }${IMAGE_REGISTRY}/${name}@${digest}"
           done
-
-      - name: Install cosign
-        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
-        uses: sigstore/cosign-installer@v4.1.3
-
-      # Signed with a key, not keyless. bootc verifies images through
-      # containers-policy(5), whose `sigstoreSigned` type takes a public key
-      # baked into the image (`keyPath`); it has no way to express a Fulcio
-      # certificate identity, so a keyless signature is unverifiable by the
-      # thing that actually consumes this image. Same shape as
-      # zirconium-dev/zirconium-hawaii, which signs with `SIGNING_SECRET` and
-      # ships the public half at /usr/share/pki/containers/.
-      #
-      # Signs the digest once rather than each tag: every tag pushed above
-      # resolves to this digest, and cosign stores the signature against the
-      # digest either way.
-      #
-      # Gated on the secret existing so a fork or a repo without the key
-      # still builds and publishes; the step reports skipped instead of
-      # failing. Remove the guard once the key is in place permanently.
-      - name: Sign image (cosign, key)
-        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) && env.COSIGN_PRIVATE_KEY != '' }}
-        env:
-          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
-          COSIGN_PASSWORD: ${{ secrets.SIGNING_SECRET_PASSWORD }}
-          STEPS_PUSH_OUTPUTS_DIGEST: ${{ steps.push.outputs.digest }}
-        run: |
-          # cosign stores a signature in the repository it signs, and
-          # containers-policy(5) checks the signed identity against the
-          # name the client pulls. So each name gets its own signature
-          # over the same digest; one signature does not cover an alias.
-          for name in ${PUBLISH_NAME} ${ALIAS_NAMES}; do
-            cosign sign -y --key env://COSIGN_PRIVATE_KEY \
-              "${IMAGE_REGISTRY}/${name}@${STEPS_PUSH_OUTPUTS_DIGEST}"
-          done
-
-      - name: Sign variant images (cosign, key)
-        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) && env.COSIGN_PRIVATE_KEY != '' }}
-        env:
-          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
-          COSIGN_PASSWORD: ${{ secrets.SIGNING_SECRET_PASSWORD }}
-        run: |
-          while read -r ref; do
-            cosign sign -y --key env://COSIGN_PRIVATE_KEY "$ref"
-          done < "${RUNNER_TEMP}/variant-digests"
-
-      - name: Warn when the image went out unsigned
-        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && (github.event_name != 'workflow_dispatch' || inputs.push_image) && env.COSIGN_PRIVATE_KEY == '' }}
-        env:
-          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
-        run: |
-          echo "::warning::SIGNING_SECRET is not set — published an unsigned image. See docs/signing.md."
+          echo "refs=${refs}" >> "$GITHUB_OUTPUT"
 
       # Runs what aquasecurity/trivy-action@v0.36.0 ran: Trivy v0.70.0,
       # `trivy image` to a SARIF file. The action dropped `severity` for SARIF
@@ -621,4 +583,68 @@ jobs:
           done
           for v in ${VARIANTS}; do
             echo "- **Variant**: \`${IMAGE_REGISTRY}/brussels-${v}:latest\`" >> $GITHUB_STEP_SUMMARY
+          done
+
+  # ── Phase 5: Keyless cosign signature ───────────────────────────────
+  # A job of its own, with no checkout and no environment: it runs no
+  # repository code and sees no Secure Boot key, and build_final has no
+  # `id-token` grant. No secret is necessary. The certificate records this
+  # workflow file and the ref, and Rekor logs the signature.
+  #
+  # bootc cannot enforce this signature: the fulcio type of
+  # containers-policy(5) matches a certificate e-mail only, and the
+  # certificate of GitHub Actions holds a URI (docs/signing.md).
+  sign_final:
+    needs: build_final
+    if: ${{ !cancelled() && needs.build_final.result == 'success' && needs.build_final.outputs.digest != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      packages: write # cosign pushes the signature to GHCR
+      id-token: write # cosign keyless signing (Sigstore/Fulcio OIDC)
+    steps:
+      - name: Setup ORAS
+        uses: oras-project/setup-oras@v2.0.4
+
+      - name: Login to GHCR
+        run: echo "$GITHUB_TOKEN" | oras login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.1.3
+
+      # cosign stores a signature in the repository that it signs. So each
+      # name gets its own signature over the same digest. Signed by digest:
+      # every tag of the push resolves to it.
+      - name: Sign images (cosign keyless)
+        env:
+          IMAGE_DIGEST: ${{ needs.build_final.outputs.digest }}
+          VARIANT_REFS: ${{ needs.build_final.outputs.variant_refs }}
+        run: |
+          set -euo pipefail
+          refs=()
+          for name in ${PUBLISH_NAME} ${ALIAS_NAMES}; do
+            refs+=("${IMAGE_REGISTRY}/${name}@${IMAGE_DIGEST}")
+          done
+          for ref in ${VARIANT_REFS}; do
+            refs+=("$ref")
+          done
+          for ref in "${refs[@]}"; do
+            [[ "$ref" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$ ]] \
+              || { echo "::error::not a digest reference: ${ref}"; exit 1; }
+            signed=false
+            for i in 1 2 3; do
+              if cosign sign --yes "$ref"; then
+                signed=true
+                break
+              fi
+              echo "Retry $i..."; sleep 20
+            done
+            [ "$signed" = true ] || { echo "::error::cannot sign ${ref}"; exit 1; }
+            # The command that docs/signing.md gives to a user, on the
+            # result that the registry holds.
+            cosign verify "$ref" \
+              --certificate-identity "${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
           done

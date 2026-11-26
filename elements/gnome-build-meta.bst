@@ -16,6 +16,12 @@ config:
     # This along with the patches is required and has to match what gnome-build-meta is using
     freedesktop-sdk.bst: freedesktop-sdk.bst
 
+    # One libdisplay-info. gnome-build-meta has 0.4.0 for mutter, and the XFCE
+    # elements use 0.3.0 from freedesktop-sdk: both in one tree is an overlap
+    # error. xfwl4 locks libdisplay-info-sys 0.3.0, which refuses 0.4. mutter
+    # takes 0.2 or newer. Drop this when xfwl4 accepts 0.4.
+    core-deps/libdisplay-info.bst: freedesktop-sdk.bst:components/libdisplay-info.bst
+
     # Replace the element so the OCI image has XFCE instead of GNOME apps
     core/meta-gnome-core-apps.bst: core/meta-xfce-core-apps.bst
 

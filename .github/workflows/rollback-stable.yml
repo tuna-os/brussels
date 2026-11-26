@@ -1,7 +1,7 @@
 name: Rollback :stable
 
 # One-button rollback when a promoted stable is bad (dakota pattern,
-# simplified — no cosign yet, see the signing issue). Dispatch-only and
+# simplified — it checks no cosign signature). Dispatch-only and
 # dry_run by default: humans opt in to moving tags.
 #
 #   1. Verify ghcr.io/tuna-os/brussels:<target_sha> exists.

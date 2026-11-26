@@ -8,7 +8,7 @@ FROM ${BASE_IMAGE}
 
 COPY . /
 
-# Mark the variant in os-release so bug reports and fastfetch can tell the
+# Mark the variant in os-release so bug reports can tell the
 # two images apart. Same OS, so ID and VERSION_ID stay.
 RUN sed -i -e '/^VARIANT=/d' -e '/^VARIANT_ID=/d' /usr/lib/os-release \
     && printf 'VARIANT="winblues"\nVARIANT_ID=winblues\n' >> /usr/lib/os-release
