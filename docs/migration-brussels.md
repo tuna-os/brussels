@@ -13,10 +13,6 @@ each tag to `ghcr.io/tuna-os/xfce-linux` on the registry and compares the two
 digests. The earlier name is thus an alias of the same image, not a second
 build. The build fails if the two names differ.
 
-> **Not published yet:** `ghcr.io/tuna-os/brussels` has no public image yet.
-> Until it has, use the earlier name `ghcr.io/tuna-os/xfce-linux` with the
-> same tags. It gets the same image.
-
 Move to the new name when it is convenient:
 
 ```bash
