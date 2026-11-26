@@ -29,6 +29,10 @@ Never post account credentials or API keys in issues or pull requests.
 
 ## Quick Start
 
+> **Not published yet:** `ghcr.io/tuna-os/brussels` has no public image yet.
+> Until it has, use the earlier name `ghcr.io/tuna-os/xfce-linux` with the
+> same tags. It gets the same image.
+
 ```bash
 # Pull the image
 podman pull ghcr.io/tuna-os/brussels:latest
