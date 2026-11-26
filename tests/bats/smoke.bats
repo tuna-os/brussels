@@ -104,3 +104,10 @@ setup() {
   run python3 -c "import py_compile; py_compile.compile('${REPO_ROOT}/tools/bst-dashboard.py', doraise=True)"
   [ "$status" -eq 0 ]
 }
+
+# ── accessibility ───────────────────────────────────────────────────────────
+
+@test "deps.bst: ships the orca screen reader" {
+  run grep -E '^\s*- gnome-build-meta.bst:core/orca.bst' "${REPO_ROOT}/elements/xfce-linux/deps.bst"
+  [ "$status" -eq 0 ]
+}

@@ -22,6 +22,10 @@ depends:
   # XFCE-logo Plymouth splash (shadows the parent layer's GNOME watermark)
   - xfce-linux/plymouth-theme.bst
 
+  # ── Accessibility ──────────────────────────────────────
+  # Screen reader (/usr/bin/orca); named here so it stays in the image
+  - gnome-build-meta.bst:core/orca.bst
+
   # ── freedesktop-sdk utilities ──────────────────────────
   - freedesktop-sdk.bst:components/buildstream2.bst
   - freedesktop-sdk.bst:components/debuginfod.bst
