@@ -15,7 +15,7 @@
 # The ISO bootloader is systemd-boot (already in xfce-linux at
 # /usr/lib/systemd/boot/efi/systemd-bootx64.efi) — no GRUB2 or shim required.
 
-ARG BASE_IMAGE=ghcr.io/tuna-os/xfce-linux:latest
+ARG BASE_IMAGE=ghcr.io/tuna-os/brussels:latest
 
 # ── Stage 1: xfce-linux reference (kernel modules source) ────────────────────
 FROM ${BASE_IMAGE} AS xfce-linux-ref

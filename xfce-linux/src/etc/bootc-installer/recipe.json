@@ -2,7 +2,7 @@
   "log_file": "/var/log/bootc-installer.log",
   "distro_name": "Brussels",
   "distro_logo": "resource:///org/bootcinstaller/Installer/images/aurora.png",
-  "imgref": "ghcr.io/tuna-os/xfce-linux:latest",
+  "imgref": "ghcr.io/tuna-os/brussels:latest",
   "bootloader": "systemd",
   "composeFsBackend": false,
   "tour": {

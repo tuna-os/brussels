@@ -13,10 +13,6 @@ each tag to `ghcr.io/tuna-os/xfce-linux` on the registry and compares the two
 digests. The earlier name is thus an alias of the same image, not a second
 build. The build fails if the two names differ.
 
-> **Not published yet:** `ghcr.io/tuna-os/brussels` has no public image yet.
-> Until it has, use the earlier name `ghcr.io/tuna-os/xfce-linux` with the
-> same tags. It gets the same image.
-
 Move to the new name when it is convenient:
 
 ```bash
@@ -89,12 +85,9 @@ a system that has no static hostname.
 
 ### Installer media
 
-The live ISO and its installer continue to install from
-`ghcr.io/tuna-os/xfce-linux` until the first image is public at the new
-name. Then one change moves `xfce-linux/payload_ref`, the `BASE_IMAGE`
-default in `xfce-linux/Containerfile`, and the installer `imgref` values to
-`ghcr.io/tuna-os/brussels`. A system that the ISO installs before that
-change tracks the alias and updates in the usual way.
+The live ISO and its installer install from `ghcr.io/tuna-os/brussels`. A
+system from an earlier ISO tracks the `xfce-linux` alias and updates in the
+usual way.
 
 ## Signatures
 
