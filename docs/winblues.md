@@ -13,9 +13,12 @@ programs, with no changes.
 
 ![The desktop with the open Start menu, the file manager, and the appearance settings](images/winblues/hero.webp)
 
-**There is no public image yet.** You cannot pull or install it. The build
-pipeline will publish it as `ghcr.io/tuna-os/brussels-winblues`, with the same
-tags as the base image.
+Image: `ghcr.io/tuna-os/brussels-winblues`, with the same tags as the base
+image. To move a bootc system that uses the composefs back end:
+
+```bash
+sudo bootc switch ghcr.io/tuna-os/brussels-winblues:latest
+```
 
 The variant follows the example of the
 [winblues](https://github.com/winblues) project, especially blue95. It is a
