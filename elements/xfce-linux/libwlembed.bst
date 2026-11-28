@@ -25,7 +25,7 @@ sources:
 - kind: git_repo
   url: xfce:kelnos/libwlembed.git
   track: main
-  ref: 3bf51b5519c9d908f75087311856e9744d7cd17f
+  ref: f39b03275703b88c5ab100e71f5bb3fbc1794090
 # git_repo does not fetch submodules; meson falls back to this copy when
 # no wlr-protocols.pc is installed.
 - kind: git_module
